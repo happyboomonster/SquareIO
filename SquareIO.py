@@ -439,18 +439,22 @@ def netcode(): #the netcode thread!
         Fdata = Cs.recv(Nbuffersize) #recieve the actual data
         Fdata = eval(Fdata.decode('utf-8')) #next we need to do something with it.
         while True: #we need to do some sticky stuff here...
+            eaten = False
             for x in range(0,len(Fdata)):
                 if(Fdata[x][1] == 'eat'): #someone (or ourselves) ate something?
                     with food_lock:
                         del(food[Fdata[x][0]])
                         del(Fdata[x])
-                    continue #restart the eat/spawn calculations
+                    eaten = True
+                    break #restart the eat/spawn calculations
                 if(Fdata[x][0] == "spawn"): #the server spawned more food?
                     for copyfood in range(0,len(Fdata)):
                         with food_lock:
                             food.append(Square()) #create a new food object
                             food[len(food) - 1].set_stats(Fdata[x][1]) #load some stats into it
                             food[len(food) - 1].color = [255,255,0]
+            if(eaten == True): #restart the eat/spawn calculations
+                continue
             break #exit once we're done the calculations
 
         #here we need to recieve data about changes in our player's size...

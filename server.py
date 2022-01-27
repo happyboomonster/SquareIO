@@ -251,8 +251,6 @@ def manage_client(IP,PORT): #manages a single client connection
             if(x < (len(food) - 1)): #make sure to add a comma after each bunch of data except on the last one!
                 Fdata += " , "
         Fdata += "]"
-        with print_lock:
-            print(Fdata)
         Cs.send(bytes(justify(str(len(list(str(Fdata)))),10),'utf-8')) #send our buffersize
         Cs.send(bytes(Fdata,'utf-8')) #send our data string
 
