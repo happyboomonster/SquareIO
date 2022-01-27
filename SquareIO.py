@@ -438,16 +438,20 @@ def netcode(): #the netcode thread!
         Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #recieve the buffersize for the data
         Fdata = Cs.recv(Nbuffersize) #recieve the actual data
         Fdata = eval(Fdata.decode('utf-8')) #next we need to do something with it.
-        for x in range(0,len(Fdata)):
-            if(Fdata[x][1] == 'eat'): #someone (or ourselves) ate something?
-                with food_lock:
-                    del(food[Fdata[x][0]])
-            if(Fdata[x][0] == "spawn"): #the server spawned more food?
-                for copyfood in range(0,len(Fdata)):
+        while True: #we need to do some sticky stuff here...
+            for x in range(0,len(Fdata)):
+                if(Fdata[x][1] == 'eat'): #someone (or ourselves) ate something?
                     with food_lock:
-                        food.append(Square()) #create a new food object
-                        food[len(food) - 1].set_stats(Fdata[x][1]) #load some stats into it
-                        food[len(food) - 1].color = [255,255,0]
+                        del(food[Fdata[x][0]])
+                        del(Fdata[x])
+                    continue #restart the eat/spawn calculations
+                if(Fdata[x][0] == "spawn"): #the server spawned more food?
+                    for copyfood in range(0,len(Fdata)):
+                        with food_lock:
+                            food.append(Square()) #create a new food object
+                            food[len(food) - 1].set_stats(Fdata[x][1]) #load some stats into it
+                            food[len(food) - 1].color = [255,255,0]
+            break #exit once we're done the calculations
 
         #here we need to recieve data about changes in our player's size...
         Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #recieve buffersize
