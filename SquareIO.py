@@ -432,6 +432,7 @@ def netcode(): #the netcode thread!
                         break
                     except IndexError: #we don't have enough players here...add another!
                         Serversquares.append(Square())
+                        Serversquares[len(Serversquares) - 1].color = [255,0,0] #set the color to red
 
         #Here we need to recieve data about changes in the Food list...
         Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #recieve the buffersize for the data
@@ -446,6 +447,7 @@ def netcode(): #the netcode thread!
                     with food_lock:
                         food.append(Square()) #create a new food object
                         food[len(food) - 1].set_stats(Fdata[x][1]) #load some stats into it
+                        food[len(food) - 1].color = [255,255,0]
 
         #here we need to recieve data about changes in our player's size...
         Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #recieve buffersize
