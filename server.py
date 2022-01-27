@@ -142,23 +142,18 @@ class Square(): #the square/player class
 
     def set_stats(self,inlist,clientnum): #ez way to decode a set of stats and verify that the client IS NOT CHEATING
         #[[posX,posY],[size,score,[directionX,directionY]]]
-##        with self.pos_lock: #set our pos to the client's
-##            with sqrt_lock:
         self.pos = inlist[0][:]
-        #with self.size_lock:
-        Ctotalsize = 0 #we need to check that the player hasn't enabled sizehax...
-        for addup in range(0,len(inlist[1][0])): #so we add up their total mass...
-            Ctotalsize += inlist[1][0][addup]
-        Stotalsize = 0 #and we add up
-        for addup in range(0,len(self.size)):
-            Stotalsize += self.size[addup]
-        if(Ctotalsize <= Stotalsize): #they didn't cheat? (their size is smaller or equal to what the server thinks?)
-            self.size = inlist[1][0] #then we can sync our sizes
-        else: #print a cheating message
-            printer.msgs.append("Cheater at " + str(clientnum) + " detected with sizehax!")
+        #Ctotalsize = 0 #we need to check that the player hasn't enabled sizehax...
+        #for addup in range(0,len(inlist[1][0])): #so we add up their total mass...
+        #    Ctotalsize += inlist[1][0][addup]
+        #Stotalsize = 0 #and we add up
+        #for addup in range(0,len(self.size)):
+        #    Stotalsize += self.size[addup]
+        #if(Ctotalsize <= Stotalsize): #they didn't cheat? (their size is smaller or equal to what the server thinks?)
+        self.size = inlist[1][0] #then we can sync our sizes
+        #else: #print a cheating message
+        #    printer.msgs.append("Cheater at " + str(clientnum) + " detected with sizehax!")
         #the server also controls score...
-##        with self.score_lock:
-##            self.score = inlist[1][1]
         #with self.direction_lock: #but not direction. ***need to add AC here...***
         self.direction = inlist[1][2][:]
         #with self.name_lock:
@@ -170,11 +165,13 @@ FOOD_THRESHOLD = 25 #minimum food amount we can have onscreen before the server 
 
 #manage the client setups and food population
 food = [] #create some food
+food_ct = 0 #counter for food IDs
 food_lock = _thread.allocate_lock()
 for x in range(0,FOOD_MAX): #create 75 pieces of food
     food.append(Square([random.randint(0,640),random.randint(0,480)])) #randomly choose a position
     food[len(food) - 1].size = [random.randint(2,7)] #give us a little bit of size variation...
-    food[len(food) - 1].name = ""
+    food[len(food) - 1].name = str(food_ct)
+    food_ct += 1
 
 def manage_client(IP,PORT): #manages a single client connection
     global obj #obj is a large object which holds ALL the data for ALL players.
@@ -274,9 +271,10 @@ def manage_client(IP,PORT): #manages a single client connection
                         foodeaten = obj[clientnum - 1].eat(food[x])
                         if(foodeaten != False): #so they ate the food...now we have to update a million players food lists...
                             obj[clientnum - 1].size[foodeaten[0]] += food[x].size[foodeaten[1]] #make sure we grow that hungry player
+                            food_id = int(food[x].name) #the ID of the food piece eaten
                             del(food[x]) #delete the eaten food
                             for b in range(0,len(obj)):
-                                obj[b].food_diffs.append([x,'eat']) #tell everyone connected that X got eaten
+                                obj[b].food_diffs.append([food_id,'eat']) #tell everyone connected that "food_id" got eaten
                             break #restart the calculations now that "food" is 1 index shorter than it should be
                     break #we finished calculations without anything being eaten?
         with obj_lock:
@@ -359,8 +357,9 @@ while True:
                     for x in range(0,FOOD_MAX - FOOD_THRESHOLD): #spawn some more!
                         food.append(Square([random.randint(0,640),random.randint(0,480)])) #randomly choose a position
                         food[len(food) - 1].size = [random.randint(2,7)] #give us a little bit of size variation...
-                        food[len(food) - 1].name = ""
+                        food[len(food) - 1].name = str(food_ct)
                         foodchanges.append(["spawn", eval(gather_data(food[len(food) - 1]))]) #make sure we keep track of what we did so the clients know...
+                        food_ct += 1
                     for x in range(0,len(obj)): #let all the clients know!
                         for y in range(0,len(foodchanges)):
                             obj[x].food_diffs.append(foodchanges[y][:]) #add the changes to the food_diffs inside each client OBJ...
