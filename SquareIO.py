@@ -1,6 +1,6 @@
 #import libraries
 import pygame #for graphics
-import threading #pretty obvious, for multicore process tasking allowing me to perform rendering + computation on separate threads
+import _thread #pretty obvious, for multicore process tasking allowing me to perform rendering + computation on separate threads
 import math #for trigonometry + sqrt, used in find_slope()
 import socket #for netcode
 
@@ -235,7 +235,7 @@ name = input("Please give a name: ")
 
 #a list full of Square() objects which gets computed/drawn/updated by the Compute,Render,and Netcode threads.
 Serversquares = []
-Serversquares_lock = threading.Lock()
+Serversquares_lock = _thread.allocate_lock()
 
 #netcode buffer size in BYTES (needs to be big enough to recieve a number up to 5 digits as a string)
 buffersize = 10
@@ -265,7 +265,7 @@ pygame.display.set_caption("SquareIO Online Multiplayer")
 
 #we need a local player object
 player = Square()
-player_lock = threading.Lock()
+player_lock = _thread.allocate_lock()
 
 #now we need to recieve some data from the server. The square's starting position, mainly.
 print("[INFO] Recieving start data...")
@@ -287,7 +287,7 @@ print("    [OK] Successfully sent name!")
 #now we need to get all the pieces of food in the game.
 #a list full of Square() objects which can only be eaten @ the moment (could change)
 food = []
-food_lock = threading.Lock()
+food_lock = _thread.allocate_lock()
 print("[INFO] Getting food positions...")
 Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #get our buffersize for all the data
 Fdata = eval(Cs.recv(Nbuffersize).decode('utf-8')) #get all the data
@@ -300,15 +300,15 @@ print("    [OK] Recieved food stats!")
 
 #stats variables
 CPS = 1 #Compute cycles Per Second (Compute thread)
-CPS_lock = threading.Lock()
+CPS_lock = _thread.allocate_lock()
 FPS = 1 #Frames Per Second (Renderer thread)
-FPS_lock = threading.Lock()
+FPS_lock = _thread.allocate_lock()
 TPS = 1 #Ticks Per Second (Networking thread)
-TPS_lock = threading.Lock()
+TPS_lock = _thread.allocate_lock()
 
 #we don't want to stop yet, do we?
 running = True
-running_lock = threading.Lock()
+running_lock = _thread.allocate_lock()
 
 def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the most computationally heavy part of the game)
     global player
@@ -477,14 +477,16 @@ def netcode(): #the netcode thread!
             TPS = justify(str(int(Nclock.get_fps())), 3)
 
 #thread start code
-r = threading.Thread(target=renderer)
-r.daemon = True
-r.start()
+#_thread.start_new_thread(compute,())
 
-c = threading.Thread(target=compute)
-c.daemon = True
-c.start()
+_thread.start_new_thread(netcode,())
 
-n = threading.Thread(target=netcode)
-n.daemon = True
-n.start()
+_thread.start_new_thread(renderer,())
+
+compute()
+##aclock = pygame.time.Clock()
+##while True:
+##    with running_lock:
+##        if(running == False):
+##            break
+##    aclock.tick(10)
