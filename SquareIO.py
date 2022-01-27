@@ -396,8 +396,6 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
             elif(event.type == pygame.MOUSEBUTTONDOWN): #then we split!!!
                 with player_lock:
                     player.split(mousepos)
-                    with printer.msgs_lock:
-                        printer.msgs.append(str(len(player.pos)) + " Size len: " + str(len(player.size)) + " Direction len: " + str(len(player.direction)))
 
         with CPS_lock:
             tmpCPS = CPS

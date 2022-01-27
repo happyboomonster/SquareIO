@@ -355,9 +355,19 @@ while True:
                 if(len(food) < FOOD_THRESHOLD): #we might need to spawn some more then...
                     foodchanges = []
                     for x in range(0,FOOD_MAX - FOOD_THRESHOLD): #spawn some more!
-                        food.append(Square([random.randint(0,640),random.randint(0,480)])) #randomly choose a position
-                        food[len(food) - 1].size = [random.randint(2,7)] #give us a little bit of size variation...
-                        food[len(food) - 1].name = str(food_ct)
+                        print("Generating Food...")
+                        food.append(Square([0,0])) #create a new piece of food
+                        spawnfood = True
+                        while spawnfood: #make sure it doesn't spawn within a player
+                            food[len(food) - 1].pos = [[random.randint(0,640),random.randint(0,480)]] #give it a random position
+                            food[len(food) - 1].size = [random.randint(2,7)] #give us a little bit of size variation...
+                            food[len(food) - 1].name = str(food_ct)
+                            for checkcollision in range(0,len(obj)):
+                                if(obj[checkcollision].eat(food[len(food) - 1]) != False): #can a player eat this food the moment it spawns?
+                                    break
+                                else:
+                                    spawnfood = False
+                                    break
                         foodchanges.append(["spawn", eval(gather_data(food[len(food) - 1]))]) #make sure we keep track of what we did so the clients know...
                         food_ct += 1
                     for x in range(0,len(obj)): #let all the clients know!
