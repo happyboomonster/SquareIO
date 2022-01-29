@@ -3,6 +3,7 @@ import pygame #for graphics
 import _thread #pretty obvious, for multicore process tasking allowing me to perform rendering + computation on separate threads
 import math #for trigonometry + sqrt, used in find_slope()
 import socket #for netcode
+#import netcode
 
 def find_slope(distance,speed): #used in determining direction of your player's movement
     #distance is an [x,y] list which is the distance between you and the mouse pointer
@@ -304,8 +305,13 @@ print("    [OK] Successfully sent name!")
 food = []
 food_lock = _thread.allocate_lock()
 print("[INFO] Getting food positions...")
-Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #get our buffersize for all the data
-Fdata = eval(Cs.recv(Nbuffersize).decode('utf-8')) #get all the data
+Fdata = [] #our food list
+Foodlen = int(Cs.recv(buffersize).decode('utf-8')) #get the length of the food list
+for getfood in range(0,Foodlen):
+    Nbuffersize = int(Cs.recv(buffersize).decode('utf-8'))
+    tmpfood = Cs.recv(Nbuffersize).decode('utf-8') #get all the data
+    tmpfood = eval(tmpfood)
+    Fdata.append(tmpfood[:])
 for x in range(0,len(Fdata)): #load it into our Food array
     food.append(Square()) #create a new Square() object
     food[len(food) - 1].set_stats(Fdata[x]) #load stats into it

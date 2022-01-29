@@ -44,6 +44,7 @@ IP = socket.gethostbyname(HOST_NAME)
 
 #create a socket object
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #create a socket object
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind((IP, PORT))
 s.listen() #wait for connections
 print("[SERVER] Successfully established socket setup on " + str(IP)) #we don't need to print lock this because it's not within threads yet...
@@ -242,14 +243,11 @@ def manage_client(IP,PORT): #manages a single client connection
     with print_lock:
         print("[ATTEMPT] Sending food particle states...")
     with food_lock:
-        Fdata = '['
-        for x in range(0,len(food)): #gather the food data into a list...
-            Fdata += gather_data(food[x])
-            if(x < (len(food) - 1)): #make sure to add a comma after each bunch of data except on the last one!
-                Fdata += " , "
-        Fdata += "]"
-        Cs.send(bytes(justify(str(len(list(str(Fdata)))),10),'utf-8')) #send our buffersize
-        Cs.send(bytes(Fdata,'utf-8')) #send our data string
+        Cs.send(bytes(justify(str(len(food)),10),'utf-8')) #send the length of our food list
+        for x in range(0,len(food)): #send each individual piece of food one at a time...
+            Fdata = gather_data(food[x])
+            Cs.send(bytes(justify(str(len(list(str(Fdata)))),10),'utf-8')) #send our buffersize
+            Cs.send(bytes(Fdata,'utf-8')) #send our data string
 
     #make sure we do the good ol' 30TPS
     Sclock = pygame.time.Clock()
@@ -355,7 +353,6 @@ while True:
                 if(len(food) < FOOD_THRESHOLD): #we might need to spawn some more then...
                     foodchanges = []
                     for x in range(0,FOOD_MAX - FOOD_THRESHOLD): #spawn some more!
-                        print("Generating Food...")
                         food.append(Square([0,0])) #create a new piece of food
                         spawnfood = True
                         while spawnfood: #make sure it doesn't spawn within a player
