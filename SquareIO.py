@@ -458,12 +458,13 @@ def netcode(): #the netcode thread!
                 del(player.direction[parse])
                 del(player.pos[parse])
         
-        Nbuffersize = Cs.recv(buffersize) #we then recieve the other players' data, which means getting the buffer size needed for that data.
-        Nbuffersize = int(Nbuffersize.decode("utf-8"))
-        Sdata = Cs.recv(Nbuffersize) #next we get the actual data...
+        otherslen = int(Cs.recv(buffersize).decode('utf-8')) #we then recieve the other players' data, which means getting the length of the list for starts.
+        Sdata = []
+        for getothers in range(0,otherslen):
+            Nbuffersize = int(Cs.recv(buffersize).decode('utf-8'))
+            Sdata.append(eval(Cs.recv(Nbuffersize).decode('utf-8'))) #next we get the actual data...
 
         #now we decode it...and it turns into a list! (if all goes well, that is)
-        Sdata = eval(Sdata.decode('utf-8'))
         with Serversquares_lock:
             for x in range(0,len(Sdata)):
                 while True:

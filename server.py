@@ -303,16 +303,12 @@ def manage_client(IP,PORT): #manages a single client connection
         Cs.send(bytes(justify(str(len(list(str(selfeaten)))),10),'utf-8')) #send the buffersize of player eaten data
         Cs.send(bytes(str(selfeaten),'utf-8')) #send the actual player eaten data
         with obj_lock:
-            with clients_lock:
-                Sdata = "[" #gather all the square data
-                for x in range(0,len(obj)):
-                    Sdata += gather_data(obj[x])
-                    if(x != len(obj) - 1): #so long as we're not adding the last player's data to the list, we add a comma in between each chunk.
-                        Sdata += " , "
-                Sdata += "]"
+            Cs.send(bytes(justify(str(len(obj)),10),'utf-8')) #send the length of the list
+            with clients_lock: #send all the square data
                 try: #if the client closed the connection...
-                    Cs.send(bytes(justify(str(len(list(Sdata))),10),'utf-8')) #we start by sending a buffersize.
-                    Cs.send(bytes(Sdata, 'utf-8')) #then we send a truckload of data.
+                    for x in range(0,len(obj)):
+                        Cs.send(bytes(justify(str(len(list(gather_data(obj[x])))),10),'utf-8')) #need to send data here!!! (buffersize)
+                        Cs.send(bytes(gather_data(obj[x]),'utf-8')) #sending the data itself
                 except socket.error: #disconnect the thread, and open up a client number
                     obj[clientnum - 1].connected = False
                     running = False
