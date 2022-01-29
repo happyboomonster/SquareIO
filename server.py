@@ -300,8 +300,10 @@ def manage_client(IP,PORT): #manages a single client connection
         #now we send data about changes in the food list...
         with obj_lock:
             foodupdate = obj[clientnum - 1].food_diffs[:]
-            Cs.send(bytes(justify(str(len(list(str(foodupdate)))), 10),'utf-8')) #send what would be our buffersize
-            Cs.send(bytes(str(foodupdate),'utf-8')) #send the food update
+            Cs.send(bytes(justify(str(len(foodupdate)), 10), 'utf-8')) #send the length of our food update size
+            for sendfood in range(0,len(foodupdate)):
+                Cs.send(bytes(justify(str(len(list(str(foodupdate[sendfood])))), 10),'utf-8')) #send what would be our buffersize
+                Cs.send(bytes(str(foodupdate[sendfood]),'utf-8')) #send the food update
             obj[clientnum - 1].food_diffs = [] #clear the food_diffs cache once its been sent
 
         with obj_lock: #now we send changes about the client's size data...

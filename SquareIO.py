@@ -459,9 +459,12 @@ def netcode(): #the netcode thread!
                         Serversquares[len(Serversquares) - 1].color = [255,0,0] #set the color to red
 
         #Here we need to recieve data about changes in the Food list...
-        Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #recieve the buffersize for the data
-        Fdata = Cs.recv(Nbuffersize) #recieve the actual data
-        Fdata = eval(Fdata.decode('utf-8')) #next we need to do something with it.
+        foodlen = int(Cs.recv(buffersize).decode('utf-8')) #recieve the length of the foodchanges list
+        Fdata = []
+        for getfood in range(0,foodlen):
+            Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #recieve the data's buffersize
+            tmpdata = eval(Cs.recv(Nbuffersize).decode('utf-8')) #then we get the data
+            Fdata.append(tmpdata[:]) #and add it to the main Fdata list.
         #use the Fdata list
         for x in range(0,len(Fdata)):
             if(Fdata[x][1] == 'eat'): #someone (or ourselves) ate something?
