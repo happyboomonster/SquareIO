@@ -319,6 +319,10 @@ for x in range(0,len(Fdata)): #load it into our Food array
     food[len(food) - 1].food = True
 print("    [OK] Recieved food stats!")
 
+#we also need to get our client number...which can be sent without the need for extensive buffersize setups and all that.
+print("[INFO] Recieving client number...")
+clientnum = int(Cs.recv(buffersize).decode('utf-8'))
+print("    [OK] Recieved client number " + str(clientnum))
 
 #stats variables
 CPS = 1 #Compute cycles Per Second (Compute thread)
@@ -357,6 +361,8 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
             player.draw_square()
         with Serversquares_lock: #draw all the other opponents
             for drawothers in range(0,len(Serversquares)):
+                if(drawothers == clientnum - 1): #we don't need to double-draw ourselves...
+                    continue
                 if(Serversquares[drawothers].connected == True):
                     Serversquares[drawothers].draw_square()
 
@@ -442,6 +448,16 @@ def netcode(): #the netcode thread!
     Nclock = pygame.time.Clock() #a pygame clock we use to try achieve 30TPS
 
     while True: #main netcode loop
+        #get data about whether we've been EATEN by someone?????!!!!!???
+        Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #get the buffersize of our data
+        Edata = eval(Cs.recv(Nbuffersize).decode('utf-8')) #get the eaten data
+        #now we need to parse it...uggh
+        for parse in range(0,len(Edata)):
+            with player_lock:
+                del(player.size[parse])
+                del(player.direction[parse])
+                del(player.pos[parse])
+        
         Nbuffersize = Cs.recv(buffersize) #we then recieve the other players' data, which means getting the buffer size needed for that data.
         Nbuffersize = int(Nbuffersize.decode("utf-8"))
         Sdata = Cs.recv(Nbuffersize) #next we get the actual data...

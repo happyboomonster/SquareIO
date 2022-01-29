@@ -249,6 +249,9 @@ def manage_client(IP,PORT): #manages a single client connection
             Cs.send(bytes(justify(str(len(list(str(Fdata)))),10),'utf-8')) #send our buffersize
             Cs.send(bytes(Fdata,'utf-8')) #send our data string
 
+    #send the player's client number
+    Cs.send(bytes(justify(str(clientnum),10),'utf-8'))
+
     #make sure we do the good ol' 30TPS
     Sclock = pygame.time.Clock()
 
@@ -265,6 +268,7 @@ def manage_client(IP,PORT): #manages a single client connection
         with obj_lock: #check if anyone has eaten food? or food eaten them, for that matter...
             with food_lock:
                 while True:
+                    loopcontinue = False
                     for x in range(0,len(food)):
                         foodeaten = obj[clientnum - 1].eat(food[x])
                         if(foodeaten != False): #so they ate the food...now we have to update a million players food lists...
@@ -273,14 +277,35 @@ def manage_client(IP,PORT): #manages a single client connection
                             del(food[x]) #delete the eaten food
                             for b in range(0,len(obj)):
                                 obj[b].food_diffs.append([food_id,'eat']) #tell everyone connected that "food_id" got eaten
+                            loopcontinue = True
                             break #restart the calculations now that "food" is 1 index shorter than it should be
+                    if(loopcontinue == True):
+                        continue
                     break #we finished calculations without anything being eaten?
+        with obj_lock: #check if anyone has eaten anyone else???
+            selfeaten = []
+            while True:
+                loopcontinue = False
+                for x in range(0,len(obj)):
+                    if(x == clientnum - 1): #we're NOT going to try eat ourselves...
+                        continue
+                    playereaten = obj[x].eat(obj[clientnum - 1]) #did someone eat us???
+                    if(playereaten != False):
+                        obj[x].size[playereaten[0]] += obj[clientnum - 1].size[playereaten[1]] #make sure we grow that hungry player
+                        player_section = playereaten[1] #this is the cell of the player that was eaten.
+                        #now we gather the eaten data into a list
+                        selfeaten.append(player_section)
+                        loopcontinue == True
+                        break #restart the calculations
+                if(loopcontinue == True):
+                    continue
+                break #exit once collision detection has been completed
+        Cs.send(bytes(justify(str(len(list(str(selfeaten)))),10),'utf-8')) #send the buffersize of player eaten data
+        Cs.send(bytes(str(selfeaten),'utf-8')) #send the actual player eaten data
         with obj_lock:
             with clients_lock:
                 Sdata = "[" #gather all the square data
                 for x in range(0,len(obj)):
-                    if(x == (clientnum - 1)): #we don't want to send the client's own data back.
-                        continue
                     Sdata += gather_data(obj[x])
                     if(x != len(obj) - 1): #so long as we're not adding the last player's data to the list, we add a comma in between each chunk.
                         Sdata += " , "
