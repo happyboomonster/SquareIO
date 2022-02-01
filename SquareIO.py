@@ -355,16 +355,25 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
                 break
 
         with food_lock: #draw all the food
-            for drawfood in range(0,len(food)):
-                food[drawfood].draw_square()
+            foodlen = len(food)
+        for drawfood in range(0,foodlen):
+            with food_lock:
+                try:
+                    food[drawfood].draw_square()
+                except IndexError: #someone ate the food right before we tried to draw it??????? *ugh*
+                    pass #just do nothing... *sigh*
         with player_lock: #draw our player
             player.draw_square()
         with Serversquares_lock: #draw all the other opponents
-            for drawothers in range(0,len(Serversquares)):
+            Serversquareslen = len(Serversquares)
+        for drawothers in range(0,Serversquareslen):
+            try:
                 if(drawothers == clientnum - 1): #we don't need to double-draw ourselves...
                     continue
                 if(Serversquares[drawothers].connected == True):
                     Serversquares[drawothers].draw_square()
+            except IndexError: #did somebody get eaten or someone disconnect while we were trying so hard to render?????? RRRRRRGH - I hate try catches
+                pass #just ignore it...
 
         #draw our performance stats
         draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " TPS: " + justify(str(performance[2]),3),[10,10],[255,0,0],1)

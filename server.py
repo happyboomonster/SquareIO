@@ -162,7 +162,7 @@ class Square(): #the square/player class
 
 #food constants
 FOOD_MAX = 75 #maximum food allowed on arena at one time
-FOOD_THRESHOLD = 25 #minimum food amount we can have onscreen before the server spawns more...
+FOOD_THRESHOLD = 65 #minimum food amount we can have onscreen before the server spawns more...
 
 #manage the client setups and food population
 food = [] #create some food
@@ -173,6 +173,8 @@ for x in range(0,FOOD_MAX): #create 75 pieces of food
     food[len(food) - 1].size = [random.randint(2,7)] #give us a little bit of size variation...
     food[len(food) - 1].name = str(food_ct)
     food_ct += 1
+
+obj_and_food_lock = _thread.allocate_lock() #a lock for OBJ and Food [] at the same time
 
 def manage_client(IP,PORT): #manages a single client connection
     global obj #obj is a large object which holds ALL the data for ALL players.
@@ -264,21 +266,22 @@ def manage_client(IP,PORT): #manages a single client connection
     running = True
 
     #then we need to start continually feeding with data...
-    while running:
-        with obj_lock: #check if anyone has eaten food? or food eaten them, for that matter...
+    while running: #check if anyone has eaten food? or food eaten them, for that matter...
+        with obj_and_food_lock:
             with food_lock:
                 while True:
                     loopcontinue = False
                     for x in range(0,len(food)):
-                        foodeaten = obj[clientnum - 1].eat(food[x])
-                        if(foodeaten != False): #so they ate the food...now we have to update a million players food lists...
-                            obj[clientnum - 1].size[foodeaten[0]] += food[x].size[foodeaten[1]] #make sure we grow that hungry player
-                            food_id = int(food[x].name) #the ID of the food piece eaten
-                            del(food[x]) #delete the eaten food
-                            for b in range(0,len(obj)):
-                                obj[b].food_diffs.append([food_id,'eat']) #tell everyone connected that "food_id" got eaten
-                            loopcontinue = True
-                            break #restart the calculations now that "food" is 1 index shorter than it should be
+                        with obj_lock:
+                            foodeaten = obj[clientnum - 1].eat(food[x])
+                            if(foodeaten != False): #so they ate the food...now we have to update a million players food lists...
+                                obj[clientnum - 1].size[foodeaten[0]] += food[x].size[foodeaten[1]] #make sure we grow that hungry player
+                                food_id = int(food[x].name) #the ID of the food piece eaten
+                                del(food[x]) #delete the eaten food
+                                for b in range(0,len(obj)):
+                                    obj[b].food_diffs.append([food_id,'eat']) #tell everyone connected that "food_id" got eaten
+                                loopcontinue = True
+                                break #restart the calculations now that "food" is 1 index shorter than it should be
                     if(loopcontinue == True):
                         continue
                     break #we finished calculations without anything being eaten?
@@ -302,22 +305,20 @@ def manage_client(IP,PORT): #manages a single client connection
                 break #exit once collision detection has been completed
         Cs.send(bytes(justify(str(len(list(str(selfeaten)))),10),'utf-8')) #send the buffersize of player eaten data
         Cs.send(bytes(str(selfeaten),'utf-8')) #send the actual player eaten data
-        with obj_lock:
-            Cs.send(bytes(justify(str(len(obj)),10),'utf-8')) #send the length of the list
-            with clients_lock: #send all the square data
-                try: #if the client closed the connection...
-                    for x in range(0,len(obj)):
-                        Cs.send(bytes(justify(str(len(list(gather_data(obj[x])))),10),'utf-8')) #need to send data here!!! (buffersize)
-                        Cs.send(bytes(gather_data(obj[x]),'utf-8')) #sending the data itself
-                except socket.error: #disconnect the thread, and open up a client number
-                    obj[clientnum - 1].connected = False
-                    running = False
-                    break
-                except ConnectionResetError: #a guaranteed disconnect? Connection DROPPED, player gets shoe.
-                    obj[clientnum - 1].connected = False
-                    running = False
-                    break
-
+        with obj_lock: #create clone objects of OBJ which we send ot our client (created clones due to threadlock possibilities)
+            objclone = obj[:]
+        Cs.send(bytes(justify(str(len(objclone)),10),'utf-8')) #send the length of the list
+        with clients_lock: #send all the square data
+            try: #if the client closed the connection...
+                for x in range(0,len(objclone)):
+                    Cs.send(bytes(justify(str(len(list(gather_data(objclone[x])))),10),'utf-8')) #need to send data here!!! (buffersize)
+                    Cs.send(bytes(gather_data(objclone[x]),'utf-8')) #sending the data itself
+            except socket.error: #disconnect the thread, and open up a client number
+                running = False
+                break
+            except ConnectionResetError: #a guaranteed disconnect? Connection DROPPED, player gets shoe.
+                running = False
+                break
         #now we send data about changes in the food list...
         with obj_lock:
             foodupdate = obj[clientnum - 1].food_diffs[:]
@@ -325,6 +326,7 @@ def manage_client(IP,PORT): #manages a single client connection
             for sendfood in range(0,len(foodupdate)):
                 Cs.send(bytes(justify(str(len(list(str(foodupdate[sendfood])))), 10),'utf-8')) #send what would be our buffersize
                 Cs.send(bytes(str(foodupdate[sendfood]),'utf-8')) #send the food update
+            foodupdate = []
             obj[clientnum - 1].food_diffs = [] #clear the food_diffs cache once its been sent
 
         with obj_lock: #now we send changes about the client's size data...
@@ -332,7 +334,7 @@ def manage_client(IP,PORT): #manages a single client connection
             Cs.send(bytes(justify(str(len(list(str(sizeupdate)))), 10),'utf-8')) #send what would be our buffersize
             Cs.send(bytes(str(sizeupdate),'utf-8')) #send the size update
             obj[clientnum - 1].size_diffs = [] #clear the size_diffs cache once its been sent
-                        
+        
         #Recieve client data...
         Cs.settimeout(5) #set a timeout of (x) seconds for Cs
         try:
@@ -342,15 +344,12 @@ def manage_client(IP,PORT): #manages a single client connection
             Cdata = Cs.recv(Nbuffersize) #then we get the client data
             Cdata = eval(Cdata.decode('utf-8'))
         except socket.timeout: #we're not getting any data in 5 SECONDS?? a ping of 5000 is unplayable, so the person probably disconnected.
-            obj[clientnum - 1].connected = False
             running = False
             break
         except ConnectionResetError: #a guaranteed disconnect? Connection DROPPED, player gets shoe.
-            obj[clientnum - 1].connected = False
             running = False
             break
         except ValueError: #we timed out, and as a result got '' instead of an int. ValueError occurs then...
-            obj[clientnum - 1].connected = False
             running = False
             break
         Cs.settimeout(None) #clear the timeout
@@ -360,6 +359,8 @@ def manage_client(IP,PORT): #manages a single client connection
             obj[clientnum - 1].set_stats(Cdata,clientnum) #*BOOM* - that was easy
         
         Sclock.tick(30) #get our sweet 30TPS
+    with obj_lock:
+        obj[clientnum - 1].connected = False
     with print_lock:
         print("[DISCONNECT, " + str(clientnum) + "] Client has disconnected from server.")
 
@@ -371,31 +372,34 @@ while True:
         print("[SERVER] New Client thread initialized...")
     _thread.start_new_thread(manage_client,(IP,PORT)) #we start a thread to join a client up...
     while True: #wait for another client to connect, and handle other things in the meantime...
-        with obj_lock:
-            with food_lock:
-                if(len(food) < FOOD_THRESHOLD): #we might need to spawn some more then...
-                    foodchanges = []
-                    for x in range(0,FOOD_MAX - FOOD_THRESHOLD): #spawn some more!
-                        food.append(Square([0,0])) #create a new piece of food
-                        spawnfood = True
-                        while spawnfood: #make sure it doesn't spawn within a player
-                            food[len(food) - 1].pos = [[random.randint(0,640),random.randint(0,480)]] #give it a random position
-                            food[len(food) - 1].size = [random.randint(2,7)] #give us a little bit of size variation...
+        with obj_and_food_lock:
+            with obj_lock:
+                with food_lock:
+                    if(len(food) <= FOOD_THRESHOLD): #we might need to spawn some more then...
+                        foodchanges = []
+                        for x in range(0,FOOD_MAX - FOOD_THRESHOLD): #spawn some more!
+                            food.append(Square([0,0])) #create a new piece of food
                             food[len(food) - 1].name = str(food_ct)
-                            for checkcollision in range(0,len(obj)):
-                                if(obj[checkcollision].eat(food[len(food) - 1]) != False): #can a player eat this food the moment it spawns?
-                                    break
-                                else:
-                                    spawnfood = False
-                                    break
-                        foodchanges.append(["spawn", eval(gather_data(food[len(food) - 1]))]) #make sure we keep track of what we did so the clients know...
-                        food_ct += 1
-                    for x in range(0,len(obj)): #let all the clients know!
-                        for y in range(0,len(foodchanges)):
-                            obj[x].food_diffs.append(foodchanges[y][:]) #add the changes to the food_diffs inside each client OBJ...
+                            spawnfood = True
+                            while spawnfood: #make sure it doesn't spawn within a player
+                                food[len(food) - 1].pos = [[random.randint(0,640),random.randint(0,480)]] #give it a random position
+                                food[len(food) - 1].size = [random.randint(2,7)] #give us a little bit of size variation...
+                                for checkcollision in range(0,len(obj)):
+                                    if(obj[checkcollision].eat(food[len(food) - 1]) != False): #can a player eat this food the moment it spawns?
+                                        break
+                                    else:
+                                        spawnfood = False
+                                        break
+                            foodchanges.append(["spawn", eval(gather_data(food[len(food) - 1]))]) #make sure we keep track of what we did so the clients know...
+                            food_ct += 1
+                        for x in range(0,len(obj)): #let all the clients know!
+                            for y in range(0,len(foodchanges)):
+                                obj[x].food_diffs.append(foodchanges[y][:]) #add the changes to the food_diffs inside each client OBJ...
+                        foodchanges = []
+                        with printer.msgs_lock:
+                            printer.msgs.append("Len of food list: " + str(len(food)))
         printer.print_msgs() #print any thread messages
         with client_connected_lock: #if we got a client on our last launched thread, then...
             if(client_connected == True):
                 client_connected = False
                 break #break out of this dumb loop and get another client connection ready to go!!!
-        clock.tick(30) #make it so we're not CONSTANTLY hogging clients / client_lock
