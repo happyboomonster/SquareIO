@@ -321,12 +321,12 @@ def manage_client(IP,PORT): #manages a single client connection
                 break
         #now we send data about changes in the food list...
         with obj_lock:
-            foodupdate = obj[clientnum - 1].food_diffs[:]
+            foodupdate = eval(str(obj[clientnum - 1].food_diffs))
             Cs.send(bytes(justify(str(len(foodupdate)), 10), 'utf-8')) #send the length of our food update size
             for sendfood in range(0,len(foodupdate)):
                 Cs.send(bytes(justify(str(len(list(str(foodupdate[sendfood])))), 10),'utf-8')) #send what would be our buffersize
                 Cs.send(bytes(str(foodupdate[sendfood]),'utf-8')) #send the food update
-            foodupdate = []
+            del(foodupdate)
             obj[clientnum - 1].food_diffs = [] #clear the food_diffs cache once its been sent
 
         with obj_lock: #now we send changes about the client's size data...
@@ -381,23 +381,14 @@ while True:
                             food.append(Square([0,0])) #create a new piece of food
                             food[len(food) - 1].name = str(food_ct)
                             spawnfood = True
-                            while spawnfood: #make sure it doesn't spawn within a player
-                                food[len(food) - 1].pos = [[random.randint(0,640),random.randint(0,480)]] #give it a random position
-                                food[len(food) - 1].size = [random.randint(2,7)] #give us a little bit of size variation...
-                                for checkcollision in range(0,len(obj)):
-                                    if(obj[checkcollision].eat(food[len(food) - 1]) != False): #can a player eat this food the moment it spawns?
-                                        break
-                                    else:
-                                        spawnfood = False
-                                        break
+                            food[len(food) - 1].pos = [[random.randint(0,640),random.randint(0,480)]] #give it a random position
+                            food[len(food) - 1].size = [random.randint(2,7)] #give us a little bit of size variation...
                             foodchanges.append(["spawn", eval(gather_data(food[len(food) - 1]))]) #make sure we keep track of what we did so the clients know...
                             food_ct += 1
                         for x in range(0,len(obj)): #let all the clients know!
                             for y in range(0,len(foodchanges)):
-                                obj[x].food_diffs.append(foodchanges[y][:]) #add the changes to the food_diffs inside each client OBJ...
+                                obj[x].food_diffs.append(eval(str(foodchanges[y]))) #add the changes to the food_diffs inside each client OBJ...
                         foodchanges = []
-                        with printer.msgs_lock:
-                            printer.msgs.append("Len of food list: " + str(len(food)))
         printer.print_msgs() #print any thread messages
         with client_connected_lock: #if we got a client on our last launched thread, then...
             if(client_connected == True):

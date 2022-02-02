@@ -140,6 +140,7 @@ class Square():
         self.direction = [[0.0, 0.0, 1.0]]
 
         self.color = [0,255,0] #color of player
+        self.textcolor = [255,255,255] #text color
         self.food = False #are we food? if so, we don't draw player name.
 
         self.connected = True #tells us whether someone's actually controlling this player or not - which tells us whether we should bother drawing it
@@ -153,7 +154,8 @@ class Square():
     def draw_square(self): #draws the player onscreen with his pos as the center point of his player
         for x in range(0,len(self.size)):
             pygame.draw.rect(screen,self.color,[int(self.pos[x][0] - self.size[x] / 2), int(self.pos[x][1] - self.size[x] / 2), int(self.size[x]), int(self.size[x])],0)
-            draw_words(self.name,[self.pos[x][0] - (len(list(self.name)) * 6) / 2,self.pos[x][1] - 3],[255,255,255],0.5)
+            if(self.textcolor != None):
+                draw_words(self.name,[self.pos[x][0] - (len(list(self.name)) * 6) / 2,self.pos[x][1] - 3],self.textcolor,0.5)
 
     def split(self,pos):
         totalmass = 0 #get a sum of all our mass
@@ -316,6 +318,7 @@ for x in range(0,len(Fdata)): #load it into our Food array
     food.append(Square()) #create a new Square() object
     food[len(food) - 1].set_stats(Fdata[x]) #load stats into it
     food[len(food) - 1].color = [255,255,0]
+    food[len(food) - 1].textcolor = None
     food[len(food) - 1].food = True
 print("    [OK] Recieved food stats!")
 
@@ -490,30 +493,23 @@ def netcode(): #the netcode thread!
         for getfood in range(0,foodlen):
             Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #recieve the data's buffersize
             tmpdata = eval(Cs.recv(Nbuffersize).decode('utf-8')) #then we get the data
-            Fdata.append(tmpdata[:]) #and add it to the main Fdata list.
+            Fdata.append(eval(str(tmpdata))) #and add it to the main Fdata list.
         #use the Fdata list
         for x in range(0,len(Fdata)):
             if(Fdata[x][1] == 'eat'): #someone (or ourselves) ate something?
                 with food_lock:
-                    runtime = len(food)
-                    foodrunning = 0 #countup variable. when = runtime, exit.
-                    while True:
-                        if(int(food[foodrunning].name) == Fdata[x][0]):
-                            del(food[foodrunning])
-                            runtime -= 1
+                    for f in range(0,len(food)):
+                        if(int(food[f].name) == Fdata[x][0]):
+                            del(food[f])
                             break
-                        foodrunning += 1
-                        if((runtime - 1) == foodrunning): #time to exit this loop?
-                            with printer.msgs_lock:
-                                print("Failed to map food ID")
-                            break
-            if(Fdata[x][0] == "spawn"): #the server spawned more food?
-                for copyfood in range(0,len(Fdata)):
-                    with food_lock:
-                        food.append(Square()) #create a new food object
-                        food[len(food) - 1].set_stats(Fdata[x][1]) #load some stats into it
-                        food[len(food) - 1].color = [255,255,0]
-                        food[len(food) - 1].food = True
+            elif(Fdata[x][0] == "spawn"): #the server spawned more food?
+                with food_lock:
+                    food.append(Square()) #create a new food object
+                    food[len(food) - 1].set_stats(Fdata[x][1]) #load some stats into it
+                    food[len(food) - 1].color = [255,255,0]
+                    food[len(food) - 1].food = True
+                    food[len(food) - 1].textcolor = None
+        Fdata = []
 
         #here we need to recieve data about changes in our player's size...
         Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #recieve buffersize
