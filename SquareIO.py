@@ -532,9 +532,14 @@ def network(): #the netcode thread!
                 Cs.close() #close the connection
                 break #kill the thread
 
-        with player_lock:
+        with player_lock: #send our player data
             Cdata = gather_data(player)
         netcode.send_data(Cs,buffersize,Cdata)
+
+        with player_lock: #get server "sync" data
+            Sdata = netcode.recieve_data(Cs,buffersize,evaluate=True)
+            if(Sdata != None):
+                player.set_stats(Sdata)
 
         #make sure we only tick 30 times a second so we don't run out of server bandwidth/processing power
         Nclock.tick(30)

@@ -352,8 +352,17 @@ def manage_client(IP,PORT): #manages a single client connection
         #now we need to decode the client's data...
         with obj_lock:
             obj[clientnum - 1].set_stats(Cdata,clientnum) #*BOOM* - that was easy
+
+        #we have what I like to call a "Sync" session here...if the server wants to set you somewhere else, you're going there!
+        Sdata = None
+        with obj_lock:
+            if(len(obj[clientnum - 1].pos) == 0): #we got eaten???
+                obj[clientnum - 1].size = [SIZE]
+                obj[clientnum - 1].pos = [[random.randint(0,640),random.randint(0,480)]]
+                obj[clientnum - 1].direction = [1,0,0]
+                Sdata = gather_data(obj[clientnum - 1])
+        netcode.send_data(Cs,buffersize,Sdata)
         
-        Sclock.tick(30) #get our sweet 30TPS
     with obj_lock:
         obj[clientnum - 1].connected = False
     with print_lock:
