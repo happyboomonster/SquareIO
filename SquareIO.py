@@ -2,8 +2,8 @@
 import pygame #for graphics
 import _thread #pretty obvious, for multicore process tasking allowing me to perform rendering + computation on separate threads
 import math #for trigonometry + sqrt, used in find_slope()
-import socket #for netcode
-#import netcode
+import socket
+import netcode #for netcode
 
 def find_slope(distance,speed): #used in determining direction of your player's movement
     #distance is an [x,y] list which is the distance between you and the mouse pointer
@@ -269,6 +269,11 @@ while True: #get the port number of the server
         print("Bad portnum. Not an integer?")
 Cs = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #create a python Socket object for our Client/game
 Cs.connect((ipaddr, int(portnum))) #try to establish a socket connection with the server
+Cs.settimeout(10) #10 second timeout limit
+try:
+    Cs.recv(8)
+except socket.timeout:
+    print("   [ERROR] Server didn't give connection acknowledge")
 print("[OK] Connection established with server " + ipaddr) #debug info
 
 #attempt to retrieve the firstfruits of our connection - the server's pick of a connection buffer size
@@ -287,10 +292,10 @@ player_lock = _thread.allocate_lock()
 
 #now we need to recieve some data from the server. The square's starting position, mainly.
 print("[INFO] Recieving start data...")
-Rbuffersize = Cs.recv(buffersize) #get the buffersize
-Rbuffersize = int(Rbuffersize.decode("utf-8"))
-print("    [OK] Grabbed start data buffersize of " + str(Rbuffersize))
-Cdata = Cs.recv(Rbuffersize) #now we recieve the actual server data.
+try:
+    Cdata = netcode.recieve_data(Cs,buffersize)
+except socket.timeout:
+    print("    [ERROR] Connection timed out...")
 player.set_stats(eval(Cdata.decode('utf-8')))
 print("    [OK] Recieved start data.")
 
@@ -298,8 +303,7 @@ print("    [OK] Recieved start data.")
 print("[INFO] Sending player name...")
 player.name = name
 Sendstuff = gather_data(player)
-Cs.send(bytes(justify(str(len(list(Sendstuff))),10),'utf-8'))
-Cs.send(bytes(Sendstuff,'utf-8'))
+netcode.send_data(Cs,buffersize,Sendstuff)
 print("    [OK] Successfully sent name!")
 
 #now we need to get all the pieces of food in the game.
@@ -309,11 +313,12 @@ food_lock = _thread.allocate_lock()
 print("[INFO] Getting food positions...")
 Fdata = [] #our food list
 Foodlen = int(Cs.recv(buffersize).decode('utf-8')) #get the length of the food list
-for getfood in range(0,Foodlen):
-    Nbuffersize = int(Cs.recv(buffersize).decode('utf-8'))
-    tmpfood = Cs.recv(Nbuffersize).decode('utf-8') #get all the data
-    tmpfood = eval(tmpfood)
-    Fdata.append(tmpfood[:])
+try:
+    for getfood in range(0,Foodlen):
+        tmpfood = netcode.recieve_data(Cs,buffersize,evaluate=True)
+        Fdata.append(tmpfood[:])
+except socket.timeout:
+    print("    [ERROR] Connection timed out...")
 for x in range(0,len(Fdata)): #load it into our Food array
     food.append(Square()) #create a new Square() object
     food[len(food) - 1].set_stats(Fdata[x]) #load stats into it
@@ -324,7 +329,10 @@ print("    [OK] Recieved food stats!")
 
 #we also need to get our client number...which can be sent without the need for extensive buffersize setups and all that.
 print("[INFO] Recieving client number...")
-clientnum = int(Cs.recv(buffersize).decode('utf-8'))
+try:
+    clientnum = int(Cs.recv(buffersize).decode('utf-8'))
+except socket.timeout:
+    print("    [ERROR] Connection timed out...")
 print("    [OK] Recieved client number " + str(clientnum))
 
 #stats variables
@@ -450,7 +458,7 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
             if(pCPS != 0):
                 CPS = pCPS
 
-def netcode(): #the netcode thread!
+def network(): #the netcode thread!
     global TPS #these global variables are very near the top of the program. (except TPS, kinda more in the middle)
     global Cs
     global buffersize
@@ -461,8 +469,7 @@ def netcode(): #the netcode thread!
 
     while True: #main netcode loop
         #get data about whether we've been EATEN by someone?????!!!!!???
-        Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #get the buffersize of our data
-        Edata = eval(Cs.recv(Nbuffersize).decode('utf-8')) #get the eaten data
+        Edata = netcode.recieve_data(Cs,buffersize,evaluate=True) #get the eaten data
         #now we need to parse it...uggh
         for parse in range(0,len(Edata)):
             with player_lock:
@@ -473,8 +480,7 @@ def netcode(): #the netcode thread!
         otherslen = int(Cs.recv(buffersize).decode('utf-8')) #we then recieve the other players' data, which means getting the length of the list for starts.
         Sdata = []
         for getothers in range(0,otherslen):
-            Nbuffersize = int(Cs.recv(buffersize).decode('utf-8'))
-            Sdata.append(eval(Cs.recv(Nbuffersize).decode('utf-8'))) #next we get the actual data...
+            Sdata.append(netcode.recieve_data(Cs,buffersize,evaluate=True))
 
         #now we decode it...and it turns into a list! (if all goes well, that is)
         with Serversquares_lock:
@@ -491,8 +497,7 @@ def netcode(): #the netcode thread!
         foodlen = int(Cs.recv(buffersize).decode('utf-8')) #recieve the length of the foodchanges list
         Fdata = []
         for getfood in range(0,foodlen):
-            Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #recieve the data's buffersize
-            tmpdata = eval(Cs.recv(Nbuffersize).decode('utf-8')) #then we get the data
+            tmpdata = netcode.recieve_data(Cs,buffersize,evaluate=True)
             Fdata.append(eval(str(tmpdata))) #and add it to the main Fdata list.
         #use the Fdata list
         for x in range(0,len(Fdata)):
@@ -512,8 +517,7 @@ def netcode(): #the netcode thread!
         Fdata = []
 
         #here we need to recieve data about changes in our player's size...
-        Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #recieve buffersize
-        Sdata = eval(Cs.recv(Nbuffersize).decode('utf-8')) #recieve size changes
+        Sdata = netcode.recieve_data(Cs,buffersize,evaluate=True) #recieve size changes
         for x in range(0,len(Sdata)): #use the data - format: [index,sizechange]
             with player_lock:
                 try:
@@ -530,8 +534,7 @@ def netcode(): #the netcode thread!
 
         with player_lock:
             Cdata = gather_data(player)
-        Cs.send(bytes(justify(str(len(list(Cdata))),10),"utf-8"))
-        Cs.send(bytes(Cdata,"utf-8")) #encode it, and send it away!
+        netcode.send_data(Cs,buffersize,Cdata)
 
         #make sure we only tick 30 times a second so we don't run out of server bandwidth/processing power
         Nclock.tick(30)
@@ -541,7 +544,7 @@ def netcode(): #the netcode thread!
             TPS = justify(str(int(Nclock.get_fps())), 3)
 
 #thread start code
-_thread.start_new_thread(netcode,())
+_thread.start_new_thread(network,())
 _thread.start_new_thread(renderer,())
 
 #start our main thread

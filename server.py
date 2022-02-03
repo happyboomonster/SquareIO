@@ -3,6 +3,7 @@ import socket
 import random
 import pygame #only used for it's time.Clock() class
 import math
+import netcode
 
 #constants for starting Square() objects
 consts_lock = _thread.allocate_lock()
@@ -186,6 +187,7 @@ def manage_client(IP,PORT): #manages a single client connection
     #create a socket connection to the client
     buffersize = 10 #default buffer size
     Cs, Caddress = s.accept() #connect to a client
+    Cs.settimeout(10) #set a timeout of (?) seconds for Cs
     with print_lock: #let the WORLD of terminal know...how exciting
         print("[OK] Client at " + str(Caddress) + " connected successfully.")
 
@@ -196,7 +198,10 @@ def manage_client(IP,PORT): #manages a single client connection
 
     #then we need to receive a confirmation signal so we know everything is working.
     print("    [WAIT] Waiting for acknowledge from client " + str(Caddress))
-    confirm = Cs.recv(buffersize)
+    try:
+        confirm = Cs.recv(buffersize)
+    except socket.timeout:
+        print("    [ERROR] Failed to recieve data from client...")
     with print_lock: #and let the USER know
         print("    [OK] Client at " + str(Caddress) + " acknowledged signal!")
 
@@ -225,16 +230,17 @@ def manage_client(IP,PORT): #manages a single client connection
         print("[ATTEMPT] Sending start data for client " + str(clientnum))
     with obj_lock:
         tmpdata = gather_data(obj[clientnum - 1])
-    Cs.send(bytes(justify(str(len(list(tmpdata))),buffersize), 'utf-8'))
-    Cs.send(bytes(tmpdata,'utf-8'))
+    netcode.send_data(Cs,buffersize,tmpdata)
     with print_lock:
         print("    [OK] Send start data for client " + str(clientnum))
 
     #get the name of the player
     with print_lock:
         print("[ATTEMPT] Recieving name of client " + str(clientnum))
-    Nbuffersize = Cs.recv(buffersize) #get the buffersize of incoming payload
-    payload = eval(Cs.recv(int(Nbuffersize.decode('utf-8'))).decode('utf-8'))
+    try:
+        payload = netcode.recieve_data(Cs,buffersize,evaluate=True)
+    except socket.timeout:
+        print("    [ERROR] Connection to client timed out...")
     with obj_lock:
         obj[clientnum - 1].set_stats(payload,clientnum)
     with print_lock:
@@ -248,8 +254,7 @@ def manage_client(IP,PORT): #manages a single client connection
         Cs.send(bytes(justify(str(len(food)),10),'utf-8')) #send the length of our food list
         for x in range(0,len(food)): #send each individual piece of food one at a time...
             Fdata = gather_data(food[x])
-            Cs.send(bytes(justify(str(len(list(str(Fdata)))),10),'utf-8')) #send our buffersize
-            Cs.send(bytes(Fdata,'utf-8')) #send our data string
+            netcode.send_data(Cs,buffersize,Fdata)
 
     #send the player's client number
     Cs.send(bytes(justify(str(clientnum),10),'utf-8'))
@@ -303,16 +308,14 @@ def manage_client(IP,PORT): #manages a single client connection
                 if(loopcontinue == True):
                     continue
                 break #exit once collision detection has been completed
-        Cs.send(bytes(justify(str(len(list(str(selfeaten)))),10),'utf-8')) #send the buffersize of player eaten data
-        Cs.send(bytes(str(selfeaten),'utf-8')) #send the actual player eaten data
+        netcode.send_data(Cs,buffersize,selfeaten) #send the actual player eaten data
         with obj_lock: #create clone objects of OBJ which we send ot our client (created clones due to threadlock possibilities)
             objclone = obj[:]
         Cs.send(bytes(justify(str(len(objclone)),10),'utf-8')) #send the length of the list
         with clients_lock: #send all the square data
             try: #if the client closed the connection...
                 for x in range(0,len(objclone)):
-                    Cs.send(bytes(justify(str(len(list(gather_data(objclone[x])))),10),'utf-8')) #need to send data here!!! (buffersize)
-                    Cs.send(bytes(gather_data(objclone[x]),'utf-8')) #sending the data itself
+                    netcode.send_data(Cs,buffersize,gather_data(objclone[x]))
             except socket.error: #disconnect the thread, and open up a client number
                 running = False
                 break
@@ -324,25 +327,18 @@ def manage_client(IP,PORT): #manages a single client connection
             foodupdate = eval(str(obj[clientnum - 1].food_diffs))
             Cs.send(bytes(justify(str(len(foodupdate)), 10), 'utf-8')) #send the length of our food update size
             for sendfood in range(0,len(foodupdate)):
-                Cs.send(bytes(justify(str(len(list(str(foodupdate[sendfood])))), 10),'utf-8')) #send what would be our buffersize
-                Cs.send(bytes(str(foodupdate[sendfood]),'utf-8')) #send the food update
+                netcode.send_data(Cs,buffersize,foodupdate[sendfood]) #send the food update
             del(foodupdate)
             obj[clientnum - 1].food_diffs = [] #clear the food_diffs cache once its been sent
 
         with obj_lock: #now we send changes about the client's size data...
             sizeupdate = eval(str(obj[clientnum - 1].size_diffs))
-            Cs.send(bytes(justify(str(len(list(str(sizeupdate)))), 10),'utf-8')) #send what would be our buffersize
-            Cs.send(bytes(str(sizeupdate),'utf-8')) #send the size update
+            netcode.send_data(Cs,buffersize,sizeupdate)
             obj[clientnum - 1].size_diffs = [] #clear the size_diffs cache once its been sent
         
         #Recieve client data...
-        Cs.settimeout(5) #set a timeout of (x) seconds for Cs
         try:
-            Nbuffersize = Cs.recv(buffersize) #then we recieve the client's data.
-            Nbuffersize = int(Nbuffersize.decode('utf-8')) #first get our buffersize
-
-            Cdata = Cs.recv(Nbuffersize) #then we get the client data
-            Cdata = eval(Cdata.decode('utf-8'))
+            Cdata = netcode.recieve_data(Cs,buffersize,evaluate=True)
         except socket.timeout: #we're not getting any data in 5 SECONDS?? a ping of 5000 is unplayable, so the person probably disconnected.
             running = False
             break
@@ -352,7 +348,6 @@ def manage_client(IP,PORT): #manages a single client connection
         except ValueError: #we timed out, and as a result got '' instead of an int. ValueError occurs then...
             running = False
             break
-        Cs.settimeout(None) #clear the timeout
 
         #now we need to decode the client's data...
         with obj_lock:
