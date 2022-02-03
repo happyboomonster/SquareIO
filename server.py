@@ -359,7 +359,7 @@ def manage_client(IP,PORT): #manages a single client connection
             if(len(obj[clientnum - 1].pos) == 0): #we got eaten???
                 obj[clientnum - 1].size = [SIZE]
                 obj[clientnum - 1].pos = [[random.randint(0,640),random.randint(0,480)]]
-                obj[clientnum - 1].direction = [1,0,0]
+                obj[clientnum - 1].direction = [[1,0,0]]
                 Sdata = gather_data(obj[clientnum - 1])
         netcode.send_data(Cs,buffersize,Sdata)
         
