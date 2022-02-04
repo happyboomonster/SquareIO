@@ -139,6 +139,9 @@ class Square():
         self.score = 0
         self.direction = [[0.0, 0.0, 1.0]]
 
+        self.boostfactor = 0.3 #the acceleration multiplier that a cell gets upon splitting
+        self.slowdown = 0.001 #the slowdown factor for usage after a cell splits (smaller = longer boost time)
+
         self.color = [0,255,0] #color of player
         self.textcolor = [255,255,255] #text color
         self.food = False #are we food? if so, we don't draw player name.
@@ -147,9 +150,9 @@ class Square():
         self.name = "default"
 
         #speed limits
-        self.speedT = 1 #pixels per tick
+        self.speedT = 2.0 #pixels per tick
         self.speedS = self.speedT * 30 #pixels per second
-        self.slowdown = 0.3 #slowdown factor - bigger = slower
+        self.slowdown = 0.5 #slowdown factor - bigger = slower
 
     def draw_square(self): #draws the player onscreen with his pos as the center point of his player
         for x in range(0,len(self.size)):
@@ -165,7 +168,7 @@ class Square():
             splitmass = totalmass / (len(self.size) + 1) #get an idea of how much mass we're going to take into the new split...
             for x in range(0,len(self.size)):
                 self.size[x] -= splitmass / len(self.size) #take away a bit of mass from all player's other cells to create a new cell
-            self.direction.append([0.0,0.0,5.0]) #make new direction vector for new instance of Square with a 5x speedup
+            self.direction.append([0.0,0.0,self.boostfactor * self.size[0]]) #make new direction vector for new instance of Square with a 5x speedup
             self.size.append(splitmass) #add the new mass size to our newest addition
             self.pos.append([self.pos[0][0], self.pos[0][1]]) #make a new pos for the duplicate
 
@@ -342,6 +345,8 @@ FPS = 1 #Frames Per Second (Renderer thread)
 FPS_lock = _thread.allocate_lock()
 TPS = 1 #Ticks Per Second (Networking thread)
 TPS_lock = _thread.allocate_lock()
+lobbystats = ["connecting to server",15] #a list which gives us stats about the state of our lobby
+lobbystats_lock = _thread.allocate_lock()
 
 #we don't want to stop yet, do we?
 running = True
@@ -352,6 +357,7 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
     global FPS
     global TPS
     global CPS
+    global lobbystats
 
     #local unlocked variables
     Rclock = pygame.time.Clock()
@@ -386,8 +392,10 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
             except IndexError: #did somebody get eaten or someone disconnect while we were trying so hard to render?????? RRRRRRGH - I hate try catches
                 pass #just ignore it...
 
-        #draw our performance stats
-        draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " TPS: " + justify(str(performance[2]),3),[10,10],[255,0,0],1)
+        #draw our performance/lobby stats
+        draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " TPS: " + justify(str(performance[2]),3),[1,1],[255,0,0],0.5)
+        with lobbystats_lock:
+            draw_words("Lobby status - " + justify(lobbystats[0],6) + " Time - " + justify(str(int(lobbystats[1])),3),[1,470],[255,0,0],0.5)
 
         pygame.display.flip() #update our screen
         screen.fill([0,0,0]) #fill our screen with everyone's favorite color
@@ -441,7 +449,7 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
                 player.direction[x][0] = TMPplayerdirection[0]
                 player.direction[x][1] = TMPplayerdirection[1]
                 if(player.direction[x][2] > 1): #decrease the player's boost amount each CPS
-                    player.direction[x][2] -= 1 / tmpCPS
+                    player.direction[x][2] -= (player.slowdown * player.size[x]) / tmpCPS
                 player.pos[x][0] += player.direction[x][0]
                 player.pos[x][1] += player.direction[x][1]
 
@@ -464,12 +472,14 @@ def network(): #the netcode thread!
     global buffersize
     global player
     global Serversquares
+    global lobbystats
 
     Nclock = pygame.time.Clock() #a pygame clock we use to try achieve 30TPS
 
     while True: #main netcode loop
         #get data about whether we've been EATEN by someone?????!!!!!???
-        Edata = netcode.recieve_data(Cs,buffersize,evaluate=True) #get the eaten data
+        netpack = netcode.recieve_data(Cs,buffersize,evaluate=True) #get ALL the server data
+        Edata = netpack[0]
         #now we need to parse it...uggh
         for parse in range(0,len(Edata)):
             with player_lock:
@@ -477,10 +487,7 @@ def network(): #the netcode thread!
                 del(player.direction[parse])
                 del(player.pos[parse])
         
-        otherslen = int(Cs.recv(buffersize).decode('utf-8')) #we then recieve the other players' data, which means getting the length of the list for starts.
-        Sdata = []
-        for getothers in range(0,otherslen):
-            Sdata.append(netcode.recieve_data(Cs,buffersize,evaluate=True))
+        Sdata = netpack[1] #Server-side square data needs to be recieved...
 
         #now we decode it...and it turns into a list! (if all goes well, that is)
         with Serversquares_lock:
@@ -494,11 +501,7 @@ def network(): #the netcode thread!
                         Serversquares[len(Serversquares) - 1].color = [255,0,0] #set the color to red
 
         #Here we need to recieve data about changes in the Food list...
-        foodlen = int(Cs.recv(buffersize).decode('utf-8')) #recieve the length of the foodchanges list
-        Fdata = []
-        for getfood in range(0,foodlen):
-            tmpdata = netcode.recieve_data(Cs,buffersize,evaluate=True)
-            Fdata.append(eval(str(tmpdata))) #and add it to the main Fdata list.
+        Fdata = netpack[2]
         #use the Fdata list
         for x in range(0,len(Fdata)):
             if(Fdata[x][1] == 'eat'): #someone (or ourselves) ate something?
@@ -517,14 +520,17 @@ def network(): #the netcode thread!
         Fdata = []
 
         #here we need to recieve data about changes in our player's size...
-        Sdata = netcode.recieve_data(Cs,buffersize,evaluate=True) #recieve size changes
+        Sdata = netpack[3]
         for x in range(0,len(Sdata)): #use the data - format: [index,sizechange]
             with player_lock:
                 try:
                     player.size[Sdata[x][0]] += Sdata[x][1] #increment/decrement the sizechange coming from the server
                 except IndexError: #we rejoined our cells within the 30th of a second that it takes this data to come through?
-                    print("Couldn't find grow index.")
-                    player.size[0] += Sdata[x][1] #then just increment cell 0 of player's size
+                    try:
+                        print("[WARNING] Couldn't find grow index.")
+                        player.size[0] += Sdata[x][1] #then just increment cell 0 of player's size
+                    except IndexError:
+                        print("[WARNING] Couldn't grow!!!")
                 
         with running_lock: #if we doesn't wants to be here anymore?
             if(running == False):
@@ -532,17 +538,20 @@ def network(): #the netcode thread!
                 Cs.close() #close the connection
                 break #kill the thread
 
+        with player_lock: #get server "sync" data
+            Sdata = netpack[4]
+            if(Sdata != None):
+                player.set_stats(Sdata)
+
+        #get the stats of the lobby we're in (ingame/wait, timeleft)
+        with lobbystats_lock:
+            lobbystats = netpack[5]
+
         with player_lock: #send our player data
             Cdata = gather_data(player)
         netcode.send_data(Cs,buffersize,Cdata)
 
-        with player_lock: #get server "sync" data
-            Sdata = netcode.recieve_data(Cs,buffersize,evaluate=True)
-            if(Sdata != None):
-                player.set_stats(Sdata)
-
-        #make sure we only tick 30 times a second so we don't run out of server bandwidth/processing power
-        Nclock.tick(30)
+        Nclock.tick(30) #tick the clock so we can see our TPS
 
         #and set our TPS so we can see our swwwwwweeet performance stats
         with TPS_lock:

@@ -4,10 +4,22 @@ import random
 import pygame #only used for it's time.Clock() class
 import math
 import netcode
+import time
 
 #constants for starting Square() objects
 consts_lock = _thread.allocate_lock()
 SIZE = 10
+
+#round setup variables
+timestart = None #when we started the round
+roundtime = 100 #100 second round time
+roundstats_lock = _thread.allocate_lock()
+lobbytime = 15 #time the game waits for players before starting another round (seconds)
+lobbystart = None #when the lobby time started
+lobbystats_lock = _thread.allocate_lock()
+game_phase = "wait" #the phase of our game: 'wait' or 'ingame'
+game_phase_lock = _thread.allocate_lock()
+timeleft = 0 #covered under the game_phase_lock(), used to tell how much time is left in either "wait" or "ingame" mode
 
 #a broader lock object, for making sure we only add one client to the game at a time
 join_lock = _thread.allocate_lock()
@@ -72,16 +84,13 @@ def justify(string,size): #a function which right justifies a string
     return string
 
 def gather_data(inobj): #gathers the stats from a square object
-    #with obj.pos_lock: #next we send our own data...
     pos = str(inobj.pos)
-    #with obj.size_lock:
     size = str(inobj.size)
-    #with obj.score_lock:
     score = str(inobj.score)
-    #with obj.direction_lock:
     direction = str(inobj.direction)
-    Odata = "[" + pos + ",[" + size + " , " + score + " , " + direction + "], " + str(inobj.connected) + " , " + "'" + str(inobj.name) + "'" + "]" #next we join it all into one big string...
-    #Odata = justify(Odata, 200) #right-justify our data to 100 characters in size
+    name = inobj.name
+    connected = str(inobj.connected)
+    Odata = "[" + pos + ",[" + size + " , " + score + " , " + direction + "], " + connected + " , " + "'" + name + "'" + "]" #next we join it all into one big string...
     return Odata
 
 class Square(): #the square/player class
@@ -102,6 +111,7 @@ class Square(): #the square/player class
         self.speedS = self.speedT * 30 #pixels per second
         self.speedThreshold = 2 #due to ping, etc. we need to give people a little give/take regarding policing their speeds...
         self.slowdown = 0.3 #slowdown factor - bigger = slower
+        self.shrinkfactor = 0.025 #how fast we shrink...
 
         self.pos_lock = _thread.allocate_lock()
         self.size_lock = _thread.allocate_lock()
@@ -110,6 +120,12 @@ class Square(): #the square/player class
         self.name_lock = _thread.allocate_lock()
         self.clientnum_lock = _thread.allocate_lock()
         self.food_diffs_lock = _thread.allocate_lock()
+
+    def shrink(self,TPS):
+        for x in range(0,len(self.size)):
+            if(self.size[x] > 20):
+                self.size_diffs.append([x,-(self.shrinkfactor * self.size[x]) / TPS])
+                self.size[x] -= (self.shrinkfactor * self.size[x]) / TPS
 
     def eat(self,other): #checks whether this Square() instance is completely surrounding another. if so, the other one's DEAD.
         selfposition = [] #list format: [[x1,y1,x2,y2], [x1,y1,x2,y2]]
@@ -143,27 +159,14 @@ class Square(): #the square/player class
         return False #if we didn't eat anything?
 
     def set_stats(self,inlist,clientnum): #ez way to decode a set of stats and verify that the client IS NOT CHEATING
-        #[[posX,posY],[size,score,[directionX,directionY]]]
         self.pos = inlist[0][:]
-        #Ctotalsize = 0 #we need to check that the player hasn't enabled sizehax...
-        #for addup in range(0,len(inlist[1][0])): #so we add up their total mass...
-        #    Ctotalsize += inlist[1][0][addup]
-        #Stotalsize = 0 #and we add up
-        #for addup in range(0,len(self.size)):
-        #    Stotalsize += self.size[addup]
-        #if(Ctotalsize <= Stotalsize): #they didn't cheat? (their size is smaller or equal to what the server thinks?)
         self.size = inlist[1][0] #then we can sync our sizes
-        #else: #print a cheating message
-        #    printer.msgs.append("Cheater at " + str(clientnum) + " detected with sizehax!")
-        #the server also controls score...
-        #with self.direction_lock: #but not direction. ***need to add AC here...***
         self.direction = inlist[1][2][:]
-        #with self.name_lock:
         self.name = inlist[3]
 
 #food constants
-FOOD_MAX = 75 #maximum food allowed on arena at one time
-FOOD_THRESHOLD = 65 #minimum food amount we can have onscreen before the server spawns more...
+FOOD_MAX = 50 #maximum food allowed on arena at one time
+FOOD_THRESHOLD = 35 #minimum food amount we can have onscreen before the server spawns more...
 
 #manage the client setups and food population
 food = [] #create some food
@@ -180,10 +183,10 @@ obj_and_food_lock = _thread.allocate_lock() #a lock for OBJ and Food [] at the s
 def manage_client(IP,PORT): #manages a single client connection
     global obj #obj is a large object which holds ALL the data for ALL players.
     global clients
-    global tickComplete
-    global tickPhase
     global s
     global client_connected
+    global game_phase
+    global timeleft
     #create a socket connection to the client
     buffersize = 10 #default buffer size
     Cs, Caddress = s.accept() #connect to a client
@@ -270,71 +273,91 @@ def manage_client(IP,PORT): #manages a single client connection
 
     running = True
 
+    with game_phase_lock:
+        Cgamephase = game_phase
+
+    netpack = [] #a list which we send to the client each tick
+
     #then we need to start continually feeding with data...
     while running: #check if anyone has eaten food? or food eaten them, for that matter...
-        with obj_and_food_lock:
-            with food_lock:
+        with game_phase_lock:
+            Cgamephase = game_phase
+        if(Cgamephase == 'ingame'): #we only check food eating if game is started...
+            with obj_and_food_lock:
+                with food_lock:
+                    while True:
+                        loopcontinue = False
+                        for x in range(0,len(food)):
+                            with obj_lock:
+                                foodeaten = obj[clientnum - 1].eat(food[x])
+                                if(foodeaten != False): #so they ate the food...now we have to update a million players food lists...
+                                    obj[clientnum - 1].size[foodeaten[0]] += food[x].size[foodeaten[1]] #make sure we grow that hungry player
+                                    food_id = int(food[x].name) #the ID of the food piece eaten
+                                    del(food[x]) #delete the eaten food
+                                    for b in range(0,len(obj)):
+                                        obj[b].food_diffs.append([food_id,'eat']) #tell everyone connected that "food_id" got eaten
+                                    loopcontinue = True
+                                    break #restart the calculations now that "food" is 1 index shorter than it should be
+                        if(loopcontinue == True):
+                            continue
+                        break #we finished calculations without anything being eaten?
+            with obj_lock: #check if anyone has eaten anyone else???
+                selfeaten = []
                 while True:
                     loopcontinue = False
-                    for x in range(0,len(food)):
-                        with obj_lock:
-                            foodeaten = obj[clientnum - 1].eat(food[x])
-                            if(foodeaten != False): #so they ate the food...now we have to update a million players food lists...
-                                obj[clientnum - 1].size[foodeaten[0]] += food[x].size[foodeaten[1]] #make sure we grow that hungry player
-                                food_id = int(food[x].name) #the ID of the food piece eaten
-                                del(food[x]) #delete the eaten food
-                                for b in range(0,len(obj)):
-                                    obj[b].food_diffs.append([food_id,'eat']) #tell everyone connected that "food_id" got eaten
-                                loopcontinue = True
-                                break #restart the calculations now that "food" is 1 index shorter than it should be
+                    for x in range(0,len(obj)):
+                        if(x == clientnum - 1): #we're NOT going to try eat ourselves...
+                            continue
+                        if(obj[x].connected == False): #we're NOT checking collision for people who aren't there!
+                            continue
+                        playereaten = obj[x].eat(obj[clientnum - 1]) #did someone eat us???
+                        if(playereaten != False):
+                            obj[x].size[playereaten[0]] += obj[clientnum - 1].size[playereaten[1]] #make sure we grow that hungry player
+                            player_section = playereaten[1] #this is the cell of the player that was eaten.
+                            #now we gather the eaten data into a list
+                            selfeaten.append(player_section)
+                            loopcontinue == True
+                            break #restart the calculations
                     if(loopcontinue == True):
                         continue
-                    break #we finished calculations without anything being eaten?
-        with obj_lock: #check if anyone has eaten anyone else???
+                    break #exit once collision detection has been completed
+        else: #game hasn't started?
             selfeaten = []
-            while True:
-                loopcontinue = False
-                for x in range(0,len(obj)):
-                    if(x == clientnum - 1): #we're NOT going to try eat ourselves...
-                        continue
-                    playereaten = obj[x].eat(obj[clientnum - 1]) #did someone eat us???
-                    if(playereaten != False):
-                        obj[x].size[playereaten[0]] += obj[clientnum - 1].size[playereaten[1]] #make sure we grow that hungry player
-                        player_section = playereaten[1] #this is the cell of the player that was eaten.
-                        #now we gather the eaten data into a list
-                        selfeaten.append(player_section)
-                        loopcontinue == True
-                        break #restart the calculations
-                if(loopcontinue == True):
-                    continue
-                break #exit once collision detection has been completed
-        netcode.send_data(Cs,buffersize,selfeaten) #send the actual player eaten data
+        netpack.append(selfeaten[:]) #add "selfeaten" to netpack list
         with obj_lock: #create clone objects of OBJ which we send ot our client (created clones due to threadlock possibilities)
             objclone = obj[:]
-        Cs.send(bytes(justify(str(len(objclone)),10),'utf-8')) #send the length of the list
-        with clients_lock: #send all the square data
-            try: #if the client closed the connection...
-                for x in range(0,len(objclone)):
-                    netcode.send_data(Cs,buffersize,gather_data(objclone[x]))
-            except socket.error: #disconnect the thread, and open up a client number
-                running = False
-                break
-            except ConnectionResetError: #a guaranteed disconnect? Connection DROPPED, player gets shoe.
-                running = False
-                break
+        gatheredobjs = []
+        for getobjs in range(0,len(objclone)):
+            gatheredobjs.append(eval(gather_data(objclone[getobjs])))
+        netpack.append(gatheredobjs) #add all the square data to a list
         #now we send data about changes in the food list...
         with obj_lock:
             foodupdate = eval(str(obj[clientnum - 1].food_diffs))
-            Cs.send(bytes(justify(str(len(foodupdate)), 10), 'utf-8')) #send the length of our food update size
-            for sendfood in range(0,len(foodupdate)):
-                netcode.send_data(Cs,buffersize,foodupdate[sendfood]) #send the food update
-            del(foodupdate)
+            netpack.append(foodupdate[:]) #add the food_diffs stuff to the netpack list
             obj[clientnum - 1].food_diffs = [] #clear the food_diffs cache once its been sent
+            del(foodupdate)
 
+        with obj_lock: #make sure we shrink if we're getting too big!
+            obj[clientnum - 1].shrink(Sclock.get_fps())
         with obj_lock: #now we send changes about the client's size data...
             sizeupdate = eval(str(obj[clientnum - 1].size_diffs))
-            netcode.send_data(Cs,buffersize,sizeupdate)
+            netpack.append(sizeupdate) #add our size update to netpack
+            #netcode.send_data(Cs,buffersize,sizeupdate)
             obj[clientnum - 1].size_diffs = [] #clear the size_diffs cache once its been sent
+
+        #we have what I like to call a "Sync" session here...if the server wants to set you somewhere else, you're going there!
+        Sdata = None
+        with obj_lock:
+            if(len(obj[clientnum - 1].pos) == 0): #we got eaten???
+                obj[clientnum - 1].size = [SIZE]
+                obj[clientnum - 1].pos = [[random.randint(0,640),random.randint(0,480)]]
+                obj[clientnum - 1].direction = [[1.0,0.0,0.0]]
+                Sdata = eval(gather_data(obj[clientnum - 1]))
+        netpack.append(Sdata) #add our sync data to the netpack list
+        with game_phase_lock: #add our time/game phase data to netpack
+            netpack.append([game_phase,timeleft])
+        netcode.send_data(Cs,buffersize,netpack) #send our "netpack"
+        netpack = [] #clear the netpack for next tick
         
         #Recieve client data...
         try:
@@ -353,22 +376,60 @@ def manage_client(IP,PORT): #manages a single client connection
         with obj_lock:
             obj[clientnum - 1].set_stats(Cdata,clientnum) #*BOOM* - that was easy
 
-        #we have what I like to call a "Sync" session here...if the server wants to set you somewhere else, you're going there!
-        Sdata = None
-        with obj_lock:
-            if(len(obj[clientnum - 1].pos) == 0): #we got eaten???
-                obj[clientnum - 1].size = [SIZE]
-                obj[clientnum - 1].pos = [[random.randint(0,640),random.randint(0,480)]]
-                obj[clientnum - 1].direction = [[1,0,0]]
-                Sdata = gather_data(obj[clientnum - 1])
-        netcode.send_data(Cs,buffersize,Sdata)
+        Sclock.tick(30)
         
     with obj_lock:
         obj[clientnum - 1].connected = False
     with print_lock:
         print("[DISCONNECT, " + str(clientnum) + "] Client has disconnected from server.")
 
+def round_handler(): #governs the timing of when waiting for players happens, and when the game starts
+    global lobbytime
+    global lobbystart
+    global roundtime
+    global roundstart
+    global obj
+    global game_phase
+    global timeleft
+
+    start = False
+    
+    while True:
+        with lobbystats_lock:
+            lobbystart = time.time() #keep track of when we started waiting for players
+        start = False
+        while not start: #wait till game start
+            with game_phase_lock: #keep track of how much time left in round
+                timeleft = lobbytime - (time.time() - lobbystart)
+            with lobbystats_lock:
+                if((time.time() - lobbystart) >= lobbytime): #do we start the round? (we waited for lobbytime seconds already)
+                    start = True
+            with obj_lock:
+                clients_ct = 0 #how many clients are ready to go?
+                for x in range(0,len(obj)):
+                    if(obj[x].connected == True):
+                        clients_ct += 1
+            if(clients_ct < 2): #we have less than two players in game?
+                start = False #then DO NOT start the game, it would be *pointless*
+        with roundstats_lock:
+            roundstart = time.time() #starting time for game!
+        with game_phase_lock:
+            game_phase = "ingame" #let everyone know about something called GAME START
+        with printer.msgs_lock:
+            printer.msgs.append("[LOBBY] ingame")
+        while True: #wait till the round is over
+            with game_phase_lock: #keep track of how much time left in round
+                timeleft = roundtime - (time.time() - roundstart)
+            with lobbystats_lock:
+                if((time.time() - roundstart) >= roundtime): #round over?
+                    break
+        with game_phase_lock: #let all the clients know the game state
+            game_phase = "wait"
+        with printer.msgs_lock:
+            printer.msgs.append("[LOBBY] waiting for players")
+
 clock = pygame.time.Clock()
+_thread.start_new_thread(round_handler,()) #keep track of our round times
 while True:
     with clients_lock:
         old_clientct = clients #this is how many clients we *had*...
