@@ -280,8 +280,6 @@ def manage_client(IP,PORT): #manages a single client connection
 
     #then we need to start continually feeding with data...
     while running: #check if anyone has eaten food? or food eaten them, for that matter...
-        with game_phase_lock:
-            Cgamephase = game_phase
         if(Cgamephase == 'ingame'): #we only check food eating if game is started...
             with obj_and_food_lock:
                 with food_lock:
@@ -337,8 +335,9 @@ def manage_client(IP,PORT): #manages a single client connection
             obj[clientnum - 1].food_diffs = [] #clear the food_diffs cache once its been sent
             del(foodupdate)
 
-        with obj_lock: #make sure we shrink if we're getting too big!
-            obj[clientnum - 1].shrink(Sclock.get_fps())
+        if(Cgamephase == 'ingame'):
+            with obj_lock: #make sure we shrink if we're getting too big!
+                obj[clientnum - 1].shrink(Sclock.get_fps())
         with obj_lock: #now we send changes about the client's size data...
             sizeupdate = eval(str(obj[clientnum - 1].size_diffs))
             netpack.append(sizeupdate) #add our size update to netpack
@@ -347,8 +346,15 @@ def manage_client(IP,PORT): #manages a single client connection
 
         #we have what I like to call a "Sync" session here...if the server wants to set you somewhere else, you're going there!
         Sdata = None
+        with game_phase_lock:
+            if(Cgamephase == 'wait' and game_phase == 'ingame'):
+                Sdata = True #set a flag which lets us know that we needs to reset this player to [SIZE], speed 0
+            Cgamephase = game_phase #sync our local Client-thread gamephase variable with the one in the lobbyhandler thread AFTER checking if a new round started
         with obj_lock:
             if(len(obj[clientnum - 1].pos) == 0): #we got eaten???
+                Sdata = True
+        with obj_lock:
+            if(Sdata == True):
                 obj[clientnum - 1].size = [SIZE]
                 obj[clientnum - 1].pos = [[random.randint(0,640),random.randint(0,480)]]
                 obj[clientnum - 1].direction = [[0.0,0.0,1.0]]
@@ -391,6 +397,7 @@ def round_handler(): #governs the timing of when waiting for players happens, an
     global obj
     global game_phase
     global timeleft
+    global SIZE
 
     start = False
     
@@ -417,6 +424,10 @@ def round_handler(): #governs the timing of when waiting for players happens, an
             game_phase = "ingame" #let everyone know about something called GAME START
         with printer.msgs_lock:
             printer.msgs.append("[LOBBY] ingame")
+        with obj_lock: #now that we're ingame, we need to reset everybody's size to [SIZE] again.
+            with consts_lock:
+                for x in range(0,len(obj)):
+                    obj[x].size = [SIZE]
         while True: #wait till the round is over
             with game_phase_lock: #keep track of how much time left in round
                 timeleft = roundtime - (time.time() - roundstart)

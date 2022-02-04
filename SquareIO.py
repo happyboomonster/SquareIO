@@ -421,8 +421,14 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
         #draw the scoreboard
         for x in range(0,len(scoreboard)):
             posY = (x * 8) + 2
-            posX = 620 - len(list(justify(str(x),2) + " - " + justify(scoreboard[x][0],30) + " - score - " + justify(str(int(scoreboard[x][1])),3))) * 5
+            posX = 640 - len(list(justify(str(x),2) + " - " + justify(scoreboard[x][0],30) + " - score - " + justify(str(int(scoreboard[x][1])),3))) * 6
             draw_words(justify(str(x + 1),2) + " - " + justify(scoreboard[x][0],30) + " - score - " + justify(str(int(scoreboard[x][1])),3),[posX,posY],[0,0,255],0.5)
+
+        #draw the winner's name of the previous round if we're waiting for players...
+        with lobbystats_lock:
+            if(lobbystats[0] == "wait"): #we're in lobby waiting for game start?
+                xpos = 320 - len(list("Winner - " + scoreboard[0][0])) * 11
+                draw_words("Winner - " + scoreboard[0][0],[xpos,230],[0,0,255],2)
 
         pygame.display.flip() #update our screen
         screen.fill([0,0,0]) #fill our screen with everyone's favorite color
@@ -472,9 +478,17 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
                 TMPspeed = ((player.speedS - (player.size[x] * player.slowdown)) / tmpCPS) * player.direction[x][2]
                 if(TMPspeed < (5 / tmpCPS)): #if we're not moving??? or backwards???
                     TMPspeed = (5.0 / tmpCPS) #let's be nice, let people move 5 pixels per second then...
-                TMPplayerdirection = find_slope([mousepos[0] - player.pos[x][0], mousepos[1] - player.pos[x][1]],TMPspeed)
-                player.direction[x][0] = TMPplayerdirection[0]
-                player.direction[x][1] = TMPplayerdirection[1]
+                if(player.pos[x][0] < mousepos[0] + 5 and player.pos[x][0] > mousepos[0] - 5): #to avoid jumpy standstill on players, if our mouse is centered on our cell, don't move it.
+                    if(player.pos[x][1] < mousepos[1] + 5 and player.pos[x][1] > mousepos[1] - 5):
+                        player.direction[x] = [0.0,0.0,1.0]
+                    else:
+                        TMPplayerdirection = find_slope([mousepos[0] - player.pos[x][0], mousepos[1] - player.pos[x][1]],TMPspeed)
+                        player.direction[x][0] = TMPplayerdirection[0]
+                        player.direction[x][1] = TMPplayerdirection[1]
+                else:
+                    TMPplayerdirection = find_slope([mousepos[0] - player.pos[x][0], mousepos[1] - player.pos[x][1]],TMPspeed)
+                    player.direction[x][0] = TMPplayerdirection[0]
+                    player.direction[x][1] = TMPplayerdirection[1]
                 if(player.direction[x][2] > 1): #decrease the player's boost amount each CPS
                     player.direction[x][2] -= (player.slowdown * player.size[x]) / tmpCPS
                 player.pos[x][0] += player.direction[x][0]
