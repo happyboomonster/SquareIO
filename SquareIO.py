@@ -358,6 +358,7 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
     global TPS
     global CPS
     global lobbystats
+    global Serversquares
 
     #local unlocked variables
     Rclock = pygame.time.Clock()
@@ -396,6 +397,32 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
         draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " TPS: " + justify(str(performance[2]),3),[1,1],[255,0,0],0.5)
         with lobbystats_lock:
             draw_words("Lobby status - " + justify(lobbystats[0],6) + " Time - " + justify(str(int(lobbystats[1])),3),[1,470],[255,0,0],0.5)
+
+        #create a scoreboard
+        scoreboard = []
+        skip = []
+        with Serversquares_lock:
+            SS = Serversquares
+        for c in range(0,len(SS)): #get the top len(SS) people
+            largest = [0,0] #index 0 holds the index of the largest player, index 1 holds his size
+            for x in range(0,len(SS)): #find the largest player in SS
+                if(x in skip): #we don't want to check somebody we've already added to the scoreboard
+                    continue
+                addup = 0
+                for addup in range(0,len(SS[x].size)):
+                    addup += SS[x].size[addup]
+                if(addup > largest[1]): #we found a larger player?
+                    largest = [x,addup]
+            #add his size + name to a scoreboard list, provided there's anything on the scoreboard list at all...
+            if(len(SS) > 0):
+                scoreboard.append([SS[largest[0]].name,largest[1]])
+                skip.append(largest[0]) #remove the person from the list so we can find the person who is 2nd place to him
+
+        #draw the scoreboard
+        for x in range(0,len(scoreboard)):
+            posY = (x * 8) + 2
+            posX = 620 - len(list(justify(str(x),2) + " - " + justify(scoreboard[x][0],30) + " - score - " + justify(str(int(scoreboard[x][1])),3))) * 5
+            draw_words(justify(str(x + 1),2) + " - " + justify(scoreboard[x][0],30) + " - score - " + justify(str(int(scoreboard[x][1])),3),[posX,posY],[0,0,255],0.5)
 
         pygame.display.flip() #update our screen
         screen.fill([0,0,0]) #fill our screen with everyone's favorite color
