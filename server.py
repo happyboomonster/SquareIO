@@ -351,7 +351,7 @@ def manage_client(IP,PORT): #manages a single client connection
             if(len(obj[clientnum - 1].pos) == 0): #we got eaten???
                 obj[clientnum - 1].size = [SIZE]
                 obj[clientnum - 1].pos = [[random.randint(0,640),random.randint(0,480)]]
-                obj[clientnum - 1].direction = [[1.0,0.0,0.0]]
+                obj[clientnum - 1].direction = [[0.0,0.0,1.0]]
                 Sdata = eval(gather_data(obj[clientnum - 1]))
         netpack.append(Sdata) #add our sync data to the netpack list
         with game_phase_lock: #add our time/game phase data to netpack
