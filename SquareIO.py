@@ -345,6 +345,8 @@ FPS = 1 #Frames Per Second (Renderer thread)
 FPS_lock = _thread.allocate_lock()
 TPS = 1 #Ticks Per Second (Networking thread)
 TPS_lock = _thread.allocate_lock()
+PING = 1 #ping time (ms)
+PING_lock = _thread.allocate_lock()
 lobbystats = ["connecting to server",15] #a list which gives us stats about the state of our lobby
 lobbystats_lock = _thread.allocate_lock()
 
@@ -352,17 +354,23 @@ lobbystats_lock = _thread.allocate_lock()
 running = True
 running_lock = _thread.allocate_lock()
 
+#our mouse position
+mousepos = [200,200]
+mousepos_lock = _thread.allocate_lock()
+
 def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the most computationally heavy part of the game)
     global player
     global FPS
     global TPS
     global CPS
+    global PING
     global lobbystats
     global Serversquares
+    global mousepos
 
     #local unlocked variables
     Rclock = pygame.time.Clock()
-    performance = [0,0,0]
+    performance = [0,0,0,0]
     
     global running #we wants the global version so we can end all our tasks at once
 
@@ -371,6 +379,17 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
         with running_lock: #if we doesn't wants to be here anymore?
             if(running == False):
                 break
+
+        for event in pygame.event.get(): #run the pygame event loop
+            if(event.type == pygame.QUIT): #does we wants to leave?
+                with running_lock:
+                    running = False
+            elif(event.type == pygame.MOUSEMOTION):
+                with mousepos_lock:
+                    mousepos = event.pos[:]
+            elif(event.type == pygame.MOUSEBUTTONDOWN): #then we split!!!
+                with player_lock:
+                    player.split(mousepos)
 
         with food_lock: #draw all the food
             foodlen = len(food)
@@ -394,7 +413,7 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
                 pass #just ignore it...
 
         #draw our performance/lobby stats
-        draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " TPS: " + justify(str(performance[2]),3),[1,1],[255,0,0],0.5)
+        draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " TPS: " + justify(str(performance[2]),3) + " PING - " + justify(str(performance[3]),4),[1,1],[255,0,0],0.5)
         with lobbystats_lock:
             draw_words("Lobby status - " + justify(lobbystats[0],6) + " Time - " + justify(str(int(lobbystats[1])),3),[1,470],[255,0,0],0.5)
 
@@ -442,11 +461,14 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
             performance[1] = CPS
         with TPS_lock:
             performance[2] = TPS
+        with PING_lock:
+            performance[3] = PING
 
 def compute(): #the computation thread of SquareIO; handling movement, mostly at the moment.
     global player
     global running #we wants the global version so we can end all our tasks at once
     global CPS
+    global mousepos
 
     #local variables, no threading needed
     mousepos = [0,0] #a local function variable which we DON'T need to lock at ALL.
@@ -460,33 +482,25 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
             if(running == False):
                 break
 
-        for event in pygame.event.get(): #run the pygame event loop
-            if(event.type == pygame.QUIT): #does we wants to leave?
-                with running_lock:
-                    running = False
-            elif(event.type == pygame.MOUSEMOTION):
-                mousepos = event.pos[:]
-            elif(event.type == pygame.MOUSEBUTTONDOWN): #then we split!!!
-                with player_lock:
-                    player.split(mousepos)
-
         with CPS_lock:
             tmpCPS = CPS
+        with mousepos_lock:
+            cursorpos = mousepos[:]
         with player_lock:
             player.rejoin() #check if we can rejoin any of our player's cells, and if so, do that.
             for x in range(0,len(player.direction)):
                 TMPspeed = ((player.speedS - (player.size[x] * player.slowdown)) / tmpCPS) * player.direction[x][2]
                 if(TMPspeed < (5 / tmpCPS)): #if we're not moving??? or backwards???
                     TMPspeed = (5.0 / tmpCPS) #let's be nice, let people move 5 pixels per second then...
-                if(player.pos[x][0] < mousepos[0] + 5 and player.pos[x][0] > mousepos[0] - 5): #to avoid jumpy standstill on players, if our mouse is centered on our cell, don't move it.
-                    if(player.pos[x][1] < mousepos[1] + 5 and player.pos[x][1] > mousepos[1] - 5):
+                if(player.pos[x][0] < cursorpos[0] + 5 and player.pos[x][0] > cursorpos[0] - 5): #to avoid jumpy standstill on players, if our mouse is centered on our cell, don't move it.
+                    if(player.pos[x][1] < cursorpos[1] + 5 and player.pos[x][1] > cursorpos[1] - 5):
                         player.direction[x] = [0.0,0.0,1.0]
                     else:
-                        TMPplayerdirection = find_slope([mousepos[0] - player.pos[x][0], mousepos[1] - player.pos[x][1]],TMPspeed)
+                        TMPplayerdirection = find_slope([cursorpos[0] - player.pos[x][0], cursorpos[1] - player.pos[x][1]],TMPspeed)
                         player.direction[x][0] = TMPplayerdirection[0]
                         player.direction[x][1] = TMPplayerdirection[1]
                 else:
-                    TMPplayerdirection = find_slope([mousepos[0] - player.pos[x][0], mousepos[1] - player.pos[x][1]],TMPspeed)
+                    TMPplayerdirection = find_slope([cursorpos[0] - player.pos[x][0], cursorpos[1] - player.pos[x][1]],TMPspeed)
                     player.direction[x][0] = TMPplayerdirection[0]
                     player.direction[x][1] = TMPplayerdirection[1]
                 if(player.direction[x][2] > 1): #decrease the player's boost amount each CPS
@@ -508,7 +522,8 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
                 CPS = pCPS
 
 def network(): #the netcode thread!
-    global TPS #these global variables are very near the top of the program. (except TPS, kinda more in the middle)
+    global TPS
+    global PING
     global Cs
     global buffersize
     global player
@@ -519,7 +534,10 @@ def network(): #the netcode thread!
 
     while True: #main netcode loop
         #get data about whether we've been EATEN by someone?????!!!!!???
-        netpack = netcode.recieve_data(Cs,buffersize,evaluate=True) #get ALL the server data
+        pack = netcode.recieve_data(Cs,buffersize,evaluate=True,returnping=True) #get ALL the server data
+        netpack = pack[0]
+        with PING_lock: #set our ping to its respective level
+            PING = pack[1]
         Edata = netpack[0]
         #now we need to parse it...uggh
         for parse in range(0,len(Edata)):
@@ -600,7 +618,7 @@ def network(): #the netcode thread!
 
 #thread start code
 _thread.start_new_thread(network,())
-_thread.start_new_thread(renderer,())
+_thread.start_new_thread(compute,())
 
 #start our main thread
-compute()
+renderer()
