@@ -568,6 +568,7 @@ def network(): #the netcode thread!
     global player
     global Serversquares
     global lobbystats
+    global running
 
     Nclock = pygame.time.Clock() #a pygame clock we use to try achieve 30TPS
 
