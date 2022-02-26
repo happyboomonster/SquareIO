@@ -136,8 +136,6 @@ class Square(): #the square/player class
             tmpposition.append(self.pos[x][0] + (self.size[x] / 2.0)) #x2
             tmpposition.append(self.pos[x][1] + (self.size[x] / 2.0)) #y2
             selfposition.append(eval(str(tmpposition)))
-##        with other.pos_lock: #get the position of the other player
-##            with other.size_lock:
         otherposition = [] #list format: [[x1,y1,x2,y2], [x1,y1,x2,y2]]
         for x in range(0,len(other.pos)):
             tmpposition = [] #list format: [x1,y1,x2,y2]
@@ -187,91 +185,120 @@ def manage_client(IP,PORT): #manages a single client connection
     global client_connected
     global game_phase
     global timeleft
+    #we are still going ahead with this, aren't we?
+    running = True
+    
     #create a socket connection to the client
     buffersize = 10 #default buffer size
     Cs, Caddress = s.accept() #connect to a client
-    Cs.settimeout(10) #set a timeout of (?) seconds for Cs
-    with print_lock: #let the WORLD of terminal know...how exciting
-        print("[OK] Client at " + str(Caddress) + " connected successfully.")
+    Cs.settimeout(15) #set a timeout of (?) seconds for Cs
+    with printer.msgs_lock: #let the WORLD of terminal know...how exciting
+        printer.msgs.append("[OK] Client at " + str(Caddress) + " connected successfully.")
 
     #next, we have to let the client know our default buffer size.
-    with print_lock:
-        print("[INFO] Sending buffersize to client " + str(Caddress))
+    with printer.msgs_lock:
+        printer.msgs.append("[INFO] Sending buffersize to client " + str(Caddress))
     Cs.send(bytes(justify(str(buffersize),buffersize), "utf-8")) #it must occupy (buffersize) characters
 
     #then we need to receive a confirmation signal so we know everything is working.
-    print("    [WAIT] Waiting for acknowledge from client " + str(Caddress))
+    with printer.msgs_lock:
+        printer.msgs.append("    [WAIT] Waiting for acknowledge from client " + str(Caddress))
     try:
         confirm = Cs.recv(buffersize)
     except socket.timeout:
-        print("    [ERROR] Failed to recieve data from client...")
-    with print_lock: #and let the USER know
-        print("    [OK] Client at " + str(Caddress) + " acknowledged signal!")
+        with printer.msgs_lock:
+            printer.msgs.append("    [ERROR] Failed to recieve data from client...")
+            running = False #we're NOT going ahead with this!
+    if(running): #we made it?
+        with printer.msgs_lock: #then let the USER know
+            printer.msgs.append("    [OK] Client at " + str(Caddress) + " acknowledged signal!")
 
-    #create a square object for our client to manipulate
-    clientnum = None
-    with join_lock:
-        with obj_lock:
-            for x in range(0,len(obj)):
-                if(obj[x].connected == False):
-                    clientnum = x + 1 #give us a client number
-                    obj[clientnum - 1].connected = True
-                    obj[clientnum - 1].pos = [[random.randint(0,640),random.randint(0,480)]]
-                    obj[clientnum - 1].direction = [[0.0, 0.0, 1.0]]
-                    with consts_lock:
-                        obj[clientnum - 1].size = [SIZE]
-        with clients_lock:
-            if(clientnum == None):
-                clients += 1
-        with obj_lock:
-            if(clientnum == None): #we couldn't find a free client position/number?
-                obj.append(Square([random.randint(0,640),random.randint(0,480)]))
-                clientnum = clients #give us a client number
+    if(running):
+        #create a square object for our client to manipulate
+        clientnum = None
+        with join_lock:
+            with obj_lock:
+                for x in range(0,len(obj)):
+                    if(obj[x].connected == False):
+                        clientnum = x + 1 #give us a client number
+                        obj[clientnum - 1].connected = True
+                        obj[clientnum - 1].pos = [[random.randint(0,640),random.randint(0,480)]]
+                        obj[clientnum - 1].direction = [[0.0, 0.0, 1.0]]
+                        with consts_lock:
+                            obj[clientnum - 1].size = [SIZE]
+            with clients_lock:
+                if(clientnum == None):
+                    clients += 1
+            with obj_lock:
+                if(clientnum == None): #we couldn't find a free client position/number?
+                    obj.append(Square([random.randint(0,640),random.randint(0,480)]))
+                    clientnum = clients #give us a client number
 
     #send the starting coords for the player
-    with print_lock:
-        print("[ATTEMPT] Sending start data for client " + str(clientnum))
-    with obj_lock:
-        tmpdata = gather_data(obj[clientnum - 1])
-    netcode.send_data(Cs,buffersize,tmpdata)
-    with print_lock:
-        print("    [OK] Send start data for client " + str(clientnum))
+    if(running):
+        with printer.msgs_lock:
+            printer.msgs.append("[ATTEMPT] Sending start data for client " + str(clientnum))
+        with obj_lock:
+            tmpdata = gather_data(obj[clientnum - 1])
+        try:
+            netcode.send_data(Cs,buffersize,tmpdata)
+        except: #we get an EOF error sometimes, and a Socket.timeout error sometimes too
+            with printer.msgs_lock:
+                printer.msgs.append("    [ERROR] Failed to send start data for client " + str(clientnum))
+                running = False #we're NOT going ahead with this in this case...
+    if(running): #we made it?
+        with printer.msgs_lock:
+            printer.msgs.append("    [OK] Send start data for client " + str(clientnum))
 
     #get the name of the player
-    with print_lock:
-        print("[ATTEMPT] Recieving name of client " + str(clientnum))
-    try:
-        payload = netcode.recieve_data(Cs,buffersize,evaluate=True)
-    except socket.timeout:
-        print("    [ERROR] Connection to client timed out...")
-    with obj_lock:
-        obj[clientnum - 1].set_stats(payload,clientnum)
-    with print_lock:
+    if(running):
+        with printer.msgs_lock:
+            printer.msgs.append("[ATTEMPT] Recieving name of client " + str(clientnum))
+        try:
+            payload = netcode.recieve_data(Cs,buffersize,evaluate=True)
+        except:
+            with printer.msgs_lock:
+                printer.msgs.append("    [ERROR] Connection to client timed out...")
+                running = False #this one's not getting through! Thought he was so sneaky...
+    if(running):
         with obj_lock:
-            print("    [OK] Recieved client name " + str(obj[clientnum - 1].name))
+            obj[clientnum - 1].set_stats(payload,clientnum)
+        with printer.msgs_lock:
+            with obj_lock:
+                printer.msgs.append("    [OK] Recieved client name " + str(obj[clientnum - 1].name))
 
     #now we send the state of all the food particles
-    with print_lock:
-        print("[ATTEMPT] Sending food particle states...")
-    with food_lock:
-        Cs.send(bytes(justify(str(len(food)),10),'utf-8')) #send the length of our food list
-        for x in range(0,len(food)): #send each individual piece of food one at a time...
-            Fdata = gather_data(food[x])
-            netcode.send_data(Cs,buffersize,Fdata)
+    if(running):
+        with printer.msgs_lock:
+            printer.msgs.append("[ATTEMPT] Sending food particle states...")
+        try:
+            with food_lock:
+                Cs.send(bytes(justify(str(len(food)),10),'utf-8')) #send the length of our food list
+                Cs.recv(buffersize) #wait for a confirmation signal
+                for x in range(0,len(food)): #send each individual piece of food one at a time...
+                    Fdata = gather_data(food[x])
+                    netcode.send_data(Cs,buffersize,Fdata)
+            with printer.msgs_lock:
+                printer.msgs.append("[OK] Successfully sent food particle states!")
+        except: #uhoh, something happened...I just know it.
+            with printer.msgs_lock:
+                printer.msgs.append("   [ERROR] Failed to send food particle states!")
+                running = False
 
-    #send the player's client number
-    Cs.send(bytes(justify(str(clientnum),10),'utf-8'))
-
-    #make sure we do the good ol' 30TPS
-    Sclock = pygame.time.Clock()
-
-    with print_lock:
-        print("    [OK] Successfully joined server!")
-
-    with client_connected_lock: #make sure the server thread knows that we got a client on us!
-        client_connected = True
-
-    running = True
+    if(running): #we're still going?
+        #send the player's client number
+        Cs.send(bytes(justify(str(clientnum),10),'utf-8'))
+        try:
+            Cs.recv(10)
+        except:
+            running = False
+            
+    if(running): #we're STILL making it???
+        Sclock = pygame.time.Clock() #make sure we do the good ol' 5PPS (Packets Per Second)
+        with printer.msgs_lock: #we managed to connect, did we?
+            printer.msgs.append("    [OK] Successfully joined server!")
+        with client_connected_lock: #make sure the server thread knows that we got a client on us!
+            client_connected = True
 
     with game_phase_lock:
         Cgamephase = game_phase
@@ -362,13 +389,17 @@ def manage_client(IP,PORT): #manages a single client connection
         netpack.append(Sdata) #add our sync data to the netpack list
         with game_phase_lock: #add our time/game phase data to netpack
             netpack.append([game_phase,timeleft])
-        netcode.send_data(Cs,buffersize,netpack) #send our "netpack"
+        try:
+            netcode.send_data(Cs,buffersize,netpack) #send our "netpack"
+        except: #we didn't get a client response???
+            running = False
+            break
         netpack = [] #clear the netpack for next tick
         
         #Recieve client data...
         try:
             Cdata = netcode.recieve_data(Cs,buffersize,evaluate=True)
-        except socket.timeout: #we're not getting any data in 5 SECONDS?? a ping of 5000 is unplayable, so the person probably disconnected.
+        except socket.timeout: #we're not getting any data in 5 SECONDS?? a ping of 15000 is unplayable, so the person probably disconnected.
             running = False
             break
         except ConnectionResetError: #a guaranteed disconnect? Connection DROPPED, player gets shoe.
@@ -382,12 +413,15 @@ def manage_client(IP,PORT): #manages a single client connection
         with obj_lock:
             obj[clientnum - 1].set_stats(Cdata,clientnum) #*BOOM* - that was easy
 
-        Sclock.tick(30)
+        Sclock.tick(5) #try to get 5 packet exchanges per second (probably not going to happen unless on LAN)
         
     with obj_lock:
-        obj[clientnum - 1].connected = False
-    with print_lock:
-        print("[DISCONNECT, " + str(clientnum) + "] Client has disconnected from server.")
+        try: #we only need to change this flag if the person disconnected AFTER the player's object was created
+            obj[clientnum - 1].connected = False
+        except:
+            pass
+    with printer.msgs_lock:
+        printer.msgs.append("[DISCONNECT, " + str(clientnum) + "] Client has disconnected from server.")
 
 def round_handler(): #governs the timing of when waiting for players happens, and when the game starts
     global lobbytime

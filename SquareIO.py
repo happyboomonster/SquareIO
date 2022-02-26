@@ -261,6 +261,9 @@ Serversquares_lock = _thread.allocate_lock()
 #netcode buffer size in BYTES (needs to be big enough to recieve a number up to 5 digits as a string)
 buffersize = 10
 
+#a flag which tells us whether we already lost the connection
+connection = True
+
 #attempt to connect to the server
 ipaddr = input("Please give me the IP of the server: ") #get the IP address of the server
 while True: #get the port number of the server
@@ -272,21 +275,31 @@ while True: #get the port number of the server
         print("Bad portnum. Not an integer?")
 Cs = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #create a python Socket object for our Client/game
 Cs.connect((ipaddr, int(portnum))) #try to establish a socket connection with the server
-Cs.settimeout(10) #10 second timeout limit
+Cs.settimeout(15) #10 second timeout limit
 try:
     Cs.recv(8)
-except socket.timeout:
+except:
     print("   [ERROR] Server didn't give connection acknowledge")
-print("[OK] Connection established with server " + ipaddr) #debug info
+    connection = False
+if(connection):
+    print("[OK] Connection established with server " + ipaddr) #debug info
 
 #attempt to retrieve the firstfruits of our connection - the server's pick of a connection buffer size
-buffersize = Cs.recv(buffersize)
-buffersize = int(buffersize.decode("utf-8"))
-print("[OK] Successfully grabbed buffer size: " + str(buffersize) + " bytes")
-Cs.send(justify("[ACK]",buffersize).encode('utf-8')) #we have to send back an acknowledgement packet. The content of it doesn't matter, as strange as it may seem.
+if(connection): #we made it this far?
+    try:
+        buffersize = Cs.recv(buffersize)
+    except:
+        print("    [ERROR] Couldn't even grab the starting buffersize!")
+        connection = False
+if(connection):
+    buffersize = int(buffersize.decode("utf-8"))
+    print("[OK] Successfully grabbed buffer size: " + str(buffersize) + " bytes")
+    Cs.send(justify("[ACK]",buffersize).encode('utf-8')) #we have to send back an acknowledgement packet. The content of it doesn't matter, as strange as it may seem.
 
 #create a display
-screen = pygame.display.set_mode([640,480],pygame.SCALED)
+STARTSIZE = [640,480]
+screen = pygame.Surface(STARTSIZE)
+display = pygame.display.set_mode(STARTSIZE,pygame.RESIZABLE)
 pygame.display.set_caption("SquareIO Online Multiplayer")
 
 #we need a local player object
@@ -294,49 +307,66 @@ player = Square()
 player_lock = _thread.allocate_lock()
 
 #now we need to recieve some data from the server. The square's starting position, mainly.
-print("[INFO] Recieving start data...")
-try:
-    Cdata = netcode.recieve_data(Cs,buffersize)
-except socket.timeout:
-    print("    [ERROR] Connection timed out...")
-player.set_stats(eval(Cdata.decode('utf-8')))
-print("    [OK] Recieved start data.")
+if(connection):
+    print("[INFO] Recieving start data...")
+    try:
+        Cdata = netcode.recieve_data(Cs,buffersize)
+    except:
+        print("    [ERROR] Connection Lost!!!!")
+        connection = False
+if(connection):
+    player.set_stats(eval(Cdata.decode('utf-8')))
+    print("    [OK] Recieved start data.")
 
 #next we need to send back some info - our name.
-print("[INFO] Sending player name...")
-player.name = name
-Sendstuff = gather_data(player)
-netcode.send_data(Cs,buffersize,Sendstuff)
-print("    [OK] Successfully sent name!")
+if(connection):
+    print("[INFO] Sending player name...")
+    player.name = name
+    Sendstuff = gather_data(player)
+    try:
+        netcode.send_data(Cs,buffersize,Sendstuff)
+    except: #we probably timed out on our recieve signal...
+        print("    [ERROR] Couldn't send player name!")
+        connection = False
+if(connection):
+    print("    [OK] Successfully sent name!")
 
 #now we need to get all the pieces of food in the game.
 #a list full of Square() objects which can only be eaten @ the moment (could change)
-food = []
-food_lock = _thread.allocate_lock()
-print("[INFO] Getting food positions...")
-Fdata = [] #our food list
-Foodlen = int(Cs.recv(buffersize).decode('utf-8')) #get the length of the food list
-try:
-    for getfood in range(0,Foodlen):
-        tmpfood = netcode.recieve_data(Cs,buffersize,evaluate=True)
-        Fdata.append(tmpfood[:])
-except socket.timeout:
-    print("    [ERROR] Connection timed out...")
-for x in range(0,len(Fdata)): #load it into our Food array
-    food.append(Square()) #create a new Square() object
-    food[len(food) - 1].set_stats(Fdata[x]) #load stats into it
-    food[len(food) - 1].color = [255,255,0]
-    food[len(food) - 1].textcolor = None
-    food[len(food) - 1].food = True
-print("    [OK] Recieved food stats!")
+if(connection):
+    food = []
+    food_lock = _thread.allocate_lock()
+    print("[INFO] Getting food positions...")
+    Fdata = [] #our food list
+    Foodlen = int(Cs.recv(buffersize).decode('utf-8')) #get the length of the food list
+    Cs.send(bytes("          ",'utf-8')) #send an empty 10 byte confirm signal
+    try:
+        for getfood in range(0,Foodlen):
+            tmpfood = netcode.recieve_data(Cs,buffersize,evaluate=True)
+            Fdata.append(tmpfood[:])
+    except:
+        print("    [ERROR] Failed to recieve food positions!")
+        connection = False
+if(connection):
+    for x in range(0,len(Fdata)): #load it into our Food array
+        food.append(Square()) #create a new Square() object
+        food[len(food) - 1].set_stats(Fdata[x]) #load stats into it
+        food[len(food) - 1].color = [255,255,0]
+        food[len(food) - 1].textcolor = None
+        food[len(food) - 1].food = True
+    print("    [OK] Recieved food stats!")
 
 #we also need to get our client number...which can be sent without the need for extensive buffersize setups and all that.
-print("[INFO] Recieving client number...")
-try:
-    clientnum = int(Cs.recv(buffersize).decode('utf-8'))
-except socket.timeout:
-    print("    [ERROR] Connection timed out...")
-print("    [OK] Recieved client number " + str(clientnum))
+if(connection):
+    print("[INFO] Recieving client number...")
+    try:
+        clientnum = int(Cs.recv(buffersize).decode('utf-8'))
+        Cs.send(bytes("          ",'utf-8')) #send an acknowledge signal
+    except:
+        print("    [ERROR] Failed to get our client number! (sad =( ).")
+        connection = False
+if(connection):
+    print("    [OK] Recieved client number " + str(clientnum))
 
 #stats variables
 CPS = 1 #Compute cycles Per Second (Compute thread)
@@ -351,7 +381,7 @@ lobbystats = ["connecting to server",15] #a list which gives us stats about the 
 lobbystats_lock = _thread.allocate_lock()
 
 #we don't want to stop yet, do we?
-running = True
+running = connection #if we managed to stay connected this whole time...
 running_lock = _thread.allocate_lock()
 
 #our mouse position
@@ -375,6 +405,9 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
     global running #we wants the global version so we can end all our tasks at once
 
     while True: #main renderer loop
+        #get our window scale sizes
+        scaleX = display.get_width() / STARTSIZE[0] * 1.0
+        scaleY = display.get_height() / STARTSIZE[1] * 1.0
         
         with running_lock: #if we doesn't wants to be here anymore?
             if(running == False):
@@ -386,7 +419,7 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
                     running = False
             elif(event.type == pygame.MOUSEMOTION):
                 with mousepos_lock:
-                    mousepos = event.pos[:]
+                    mousepos = [event.pos[0] / scaleX,event.pos[1] / scaleY]
             elif(event.type == pygame.MOUSEBUTTONDOWN): #then we split!!!
                 with player_lock:
                     player.split(mousepos)
@@ -449,6 +482,10 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
                 xpos = 320 - len(list("Winner - " + scoreboard[0][0])) * 11
                 draw_words("Winner - " + scoreboard[0][0],[xpos,230],[0,0,255],2)
 
+        #scale "screen", and blit it onto "display"
+        tmpsurface = pygame.transform.scale(screen,[display.get_width(),display.get_height()])
+        display.blit(tmpsurface,[0,0])
+        
         pygame.display.flip() #update our screen
         screen.fill([0,0,0]) #fill our screen with everyone's favorite color
 
@@ -463,6 +500,8 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
             performance[2] = TPS
         with PING_lock:
             performance[3] = PING
+            
+    pygame.quit() #exit our pygame window
 
 def compute(): #the computation thread of SquareIO; handling movement, mostly at the moment.
     global player
@@ -534,7 +573,14 @@ def network(): #the netcode thread!
 
     while True: #main netcode loop
         #get data about whether we've been EATEN by someone?????!!!!!???
-        pack = netcode.recieve_data(Cs,buffersize,evaluate=True,returnping=True) #get ALL the server data
+        try:
+            pack = netcode.recieve_data(Cs,buffersize,evaluate=True,returnping=True) #get ALL the server data
+        except: #we lost connection?
+            with running_lock:
+                running = False
+            with printer.msgs_lock:
+                printer.msgs.append("[ERROR] Lost connection midgame!")
+            break
         netpack = pack[0]
         with PING_lock: #set our ping to its respective level
             PING = pack[1]
@@ -608,13 +654,20 @@ def network(): #the netcode thread!
 
         with player_lock: #send our player data
             Cdata = gather_data(player)
-        netcode.send_data(Cs,buffersize,Cdata)
+        try:
+            netcode.send_data(Cs,buffersize,Cdata)
+        except: #we lost server connection?
+            with running_lock:
+                running = False
+            with printer.msgs_lock:
+                printer.msgs.append("[ERROR] Lost connection midgame!")
+            break
 
-        Nclock.tick(30) #tick the clock so we can see our TPS
+        Nclock.tick() #tick the clock so we can see our TPS
 
         #and set our TPS so we can see our swwwwwweeet performance stats
         with TPS_lock:
-            TPS = justify(str(int(Nclock.get_fps())), 3)
+            TPS = justify(str(int(round(Nclock.get_fps(),0))), 3)
 
 #thread start code
 _thread.start_new_thread(network,())
