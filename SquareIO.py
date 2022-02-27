@@ -1,9 +1,12 @@
 #import libraries
 import pygame #for graphics
+import sys
+sys.path.insert(0, "libraries") #make sure we can import our local libraries
 import _thread #pretty obvious, for multicore process tasking allowing me to perform rendering + computation on separate threads
 import math #for trigonometry + sqrt, used in find_slope()
 import socket
 import netcode #for netcode
+import menu #for a nice looking menu
 
 def find_slope(distance,speed): #used in determining direction of your player's movement
     #distance is an [x,y] list which is the distance between you and the mouse pointer
@@ -68,7 +71,9 @@ def draw_words(words, coords, color, scale):
         ["8",34],
         ["9",35],
         ["-",36],
-        [" ",37]]
+        [" ",37],
+        [".",38]
+        ]
 
     font = [ #a line based font (abcdefghijklmnopqrstuvwxyz0123456789-), size 10PX
         [[0,0],[10,0],[10,10],[10,3],[0,3],[0,0],[0,10]], #A
@@ -108,7 +113,8 @@ def draw_words(words, coords, color, scale):
         [[0,3],[5,0],[10,3],[0,8],[5,10],[10,8],[0,3]], #8
         [[0,10],[10,7],[5,0],[0,5],[5,6],[10,7]], #9
         [[0,5],[10,5]], #-
-        [[0,0],[0,0]] #[space]
+        [[0,0],[0,0]], #[space]
+        [[5,10],[6,10],[6,9],[5,9],[5,10]] #period
         ]
 
     words = list(words)
@@ -248,11 +254,34 @@ class Printer(): #class which allows threads to add messages to a queue which th
                 print(self.msgs[x])
             self.msgs = [] #clear the message cache
 
+#create a display
+STARTSIZE = [640,480]
+screen = pygame.Surface(STARTSIZE)
+display = pygame.display.set_mode(STARTSIZE,pygame.RESIZABLE)
+pygame.display.set_caption("SquareIO Online Multiplayer")
+
 #create a printer object
 printer = Printer()
 
+#create a menu object
+Mhandler = menu.Menuhandler()
+
 #get a player name
-name = input("Please give a name: ")
+name = Mhandler.get_input(display,"Please give a name")
+
+#get the server's IP address
+ipaddr = Mhandler.get_input(display,"Please give me the IP of the server")
+faulty = False
+while True: #get the port number of the server
+    if(faulty == False):
+        portnum = Mhandler.get_input(display,"Please give me the port number of the server")
+    else:
+        portnum = Mhandler.get_input(display,"Bad Portnum. Try again...")
+    try: #valid port number?
+        int(portnum)
+        break #exit the endless loop of faulty port numbers
+    except: #if not...
+        faulty = True
 
 #a list full of Square() objects which gets computed/drawn/updated by the Compute,Render,and Netcode threads.
 Serversquares = []
@@ -265,14 +294,6 @@ buffersize = 10
 connection = True
 
 #attempt to connect to the server
-ipaddr = input("Please give me the IP of the server: ") #get the IP address of the server
-while True: #get the port number of the server
-    portnum = input("Please give me the port number of the server: ")
-    try: #valid port number?
-        int(portnum)
-        break #exit the endless loop of faulty port numbers
-    except: #if not...
-        print("Bad portnum. Not an integer?")
 Cs = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #create a python Socket object for our Client/game
 Cs.connect((ipaddr, int(portnum))) #try to establish a socket connection with the server
 Cs.settimeout(15) #10 second timeout limit
@@ -295,12 +316,6 @@ if(connection):
     buffersize = int(buffersize.decode("utf-8"))
     print("[OK] Successfully grabbed buffer size: " + str(buffersize) + " bytes")
     Cs.send(justify("[ACK]",buffersize).encode('utf-8')) #we have to send back an acknowledgement packet. The content of it doesn't matter, as strange as it may seem.
-
-#create a display
-STARTSIZE = [640,480]
-screen = pygame.Surface(STARTSIZE)
-display = pygame.display.set_mode(STARTSIZE,pygame.RESIZABLE)
-pygame.display.set_caption("SquareIO Online Multiplayer")
 
 #we need a local player object
 player = Square()
@@ -367,6 +382,8 @@ if(connection):
         connection = False
 if(connection):
     print("    [OK] Recieved client number " + str(clientnum))
+
+pygame.time.delay(500) #delay a bit so we don't disconnect over a connection error
 
 #stats variables
 CPS = 1 #Compute cycles Per Second (Compute thread)

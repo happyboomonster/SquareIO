@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0, "libraries") #make sure we can import our local libraries
 import _thread
 import socket
 import random
