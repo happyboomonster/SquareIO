@@ -330,7 +330,7 @@ if(connection):
         print("    [ERROR] Connection Lost!!!!")
         connection = False
 if(connection):
-    player.set_stats(eval(Cdata.decode('utf-8')))
+    player.set_stats(eval(Cdata))
     print("    [OK] Recieved start data.")
 
 #next we need to send back some info - our name.
