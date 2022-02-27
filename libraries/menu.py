@@ -265,9 +265,9 @@ class Menu():
         running = True
         while running:
             screensize = [screen.get_width(),screen.get_height()]
-            if(scale * font.SIZE * len(list(text)) > screensize[0]): #we wrote so much text it is overflowing over the sides of the screen???
+            if(scale * font.SIZE * len(list(text)) > screensize[0] - screensize[0] / 5): #we wrote so much text it is over the sides of the screen???
                 scale -= 0.1
-            elif(scale * font.SIZE * len(list(text)) < screensize[0] - screensize[0] / 10 and scale * font.SIZE < screensize[1] - screensize[1] / 10): #we haven't wrote much text obviously...it's not even filling our screen or even close!!!
+            elif(scale * font.SIZE * len(list(text)) < screensize[0] - screensize[0] / 3 and scale * font.SIZE < screensize[1] - screensize[1] / 3): #we haven't wrote much text obviously...it's not even filling our screen or even close!!!
                 scale += 0.1
             #clear our screen...
             screen.fill([0,0,0])
