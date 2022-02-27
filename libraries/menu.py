@@ -285,7 +285,7 @@ class Menu():
                         running = False #exit the loop
                     elif(event.key == pygame.K_BACKSPACE): #uhoh, we have to delete something!
                         if(len(list(text)) > 0): #we're not trying to delete nothing?
-                            text = text[:len(list(text))] #run the backspace then!
+                            text = text[:len(list(text)) - 1] #run the backspace then!
                     else: #they probably pressed something we can add to the string!
                         for x in range(0,len(self.keys)): #iterate through our list of possible keypresses
                             if(self.keys[x][0] == event.key): #we found THE key?
