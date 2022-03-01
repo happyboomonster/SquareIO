@@ -306,7 +306,7 @@ class Menuhandler():
     def get_input(self,screen,heading=""): #gets a string input
         return self.keyinput.get_input(screen,heading)
 
-    def createmenu(self,options,optionstype,indexes,buttonindexes=[],name=""): #indexes is a list of lists of two numbers each. (I know it should be indices)
+    def create_menu(self,options,optionstype,indexes,buttonindexes=[],name=""): #indexes is a list of lists of two numbers each. (I know it should be indices)
         #the first number is the index of the button pressed. The second number is the index of the child menu to enter.
         self.menus.append([Menu(),indexes,buttonindexes]) #add a new menu to the list
         self.menunames.append(name) #add the name of the menu to the list
@@ -316,7 +316,7 @@ class Menuhandler():
     def grab_settings(self,settings):
         return self.menus[self.currentmenu][0].grab_settings(settings)
 
-    def menucollision(self,coords,dimensions,cursorpos,inc=None):
+    def menu_collision(self,coords,dimensions,cursorpos,inc=None):
         self.menus[self.currentmenu][0].menuscale = self.menuscale #make sure we sync our menuscale with the one in the menu here
         self.menus[self.currentmenu][0].buttonscale = self.buttonscale #make sure we sync our buttonscale with the one in the menu here
         namespace = self.menuscale * font.SIZE #calculate the space needed to write the name of our game at the top of the screen
@@ -334,7 +334,7 @@ class Menuhandler():
                     break #exit this checking loop!
         return [pressed, wascurrentmenu] #return the button we pressed + the menu we're in, for if we want to do something with it somewhere else...
 
-    def drawmenu(self,coords,dimensions,screen,mousepos): #draw the menu we're currently selecting, and its title/name
+    def draw_menu(self,coords,dimensions,screen,mousepos): #draw the menu we're currently selecting, and its title/name
         namespace = self.menuscale * font.SIZE #calculate the space needed to write the name of our game at the top of the screen
         #draw the menu's name
         font.draw_words(self.menunames[self.currentmenu],[coords[0] + (dimensions[0] / 2.0) - (len(list(self.menunames[self.currentmenu])) * font.SIZE * self.menuscale / 2.0),coords[1]],[255,255,0],self.menuscale,screen)

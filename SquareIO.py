@@ -256,6 +256,7 @@ class Printer(): #class which allows threads to add messages to a queue which th
 
 #create a display
 STARTSIZE = [640,480]
+DEFAULTSIZE = [640,480] #different name, same function. One for the "renderer" thread, one for the main thread.
 screen = pygame.Surface(STARTSIZE)
 display = pygame.display.set_mode(STARTSIZE,pygame.RESIZABLE)
 pygame.display.set_caption("SquareIO Online Multiplayer")
@@ -266,124 +267,146 @@ printer = Printer()
 #create a menu object
 Mhandler = menu.Menuhandler()
 
-#get a player name
-name = Mhandler.get_input(display,"Please give a name")
 
-#get the server's IP address
-ipaddr = Mhandler.get_input(display,"Please give me the IP of the server")
-faulty = False
-while True: #get the port number of the server
-    if(faulty == False):
-        portnum = Mhandler.get_input(display,"Please give me the port number of the server")
-    else:
-        portnum = Mhandler.get_input(display,"Bad Portnum. Try again...")
-    try: #valid port number?
-        int(portnum)
-        break #exit the endless loop of faulty port numbers
-    except: #if not...
-        faulty = True
 
-#a list full of Square() objects which gets computed/drawn/updated by the Compute,Render,and Netcode threads.
-Serversquares = []
-Serversquares_lock = _thread.allocate_lock()
-
-#netcode buffer size in BYTES (needs to be big enough to recieve a number up to 5 digits as a string)
-buffersize = 10
-
-#a flag which tells us whether we already lost the connection
-connection = True
-
-#attempt to connect to the server
-Cs = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #create a python Socket object for our Client/game
-Cs.connect((ipaddr, int(portnum))) #try to establish a socket connection with the server
-Cs.settimeout(15) #10 second timeout limit
-try:
-    Cs.recv(8)
-except:
-    print("   [ERROR] Server didn't give connection acknowledge")
-    connection = False
-if(connection):
-    print("[OK] Connection established with server " + ipaddr) #debug info
-
-#attempt to retrieve the firstfruits of our connection - the server's pick of a connection buffer size
-if(connection): #we made it this far?
-    try:
-        buffersize = Cs.recv(buffersize)
-    except:
-        print("    [ERROR] Couldn't even grab the starting buffersize!")
-        connection = False
-if(connection):
-    buffersize = int(buffersize.decode("utf-8"))
-    print("[OK] Successfully grabbed buffer size: " + str(buffersize) + " bytes")
-    Cs.send(justify("[ACK]",buffersize).encode('utf-8')) #we have to send back an acknowledgement packet. The content of it doesn't matter, as strange as it may seem.
-
-#we need a local player object
-player = Square()
-player_lock = _thread.allocate_lock()
-
-#now we need to recieve some data from the server. The square's starting position, mainly.
-if(connection):
-    print("[INFO] Recieving start data...")
-    try:
-        Cdata = netcode.recieve_data(Cs,buffersize)
-    except:
-        print("    [ERROR] Connection Lost!!!!")
-        connection = False
-if(connection):
-    player.set_stats(eval(Cdata))
-    print("    [OK] Recieved start data.")
-
-#next we need to send back some info - our name.
-if(connection):
-    print("[INFO] Sending player name...")
-    player.name = name
-    Sendstuff = gather_data(player)
-    try:
-        netcode.send_data(Cs,buffersize,Sendstuff)
-    except: #we probably timed out on our recieve signal...
-        print("    [ERROR] Couldn't send player name!")
-        connection = False
-if(connection):
-    print("    [OK] Successfully sent name!")
-
-#now we need to get all the pieces of food in the game.
-#a list full of Square() objects which can only be eaten @ the moment (could change)
-if(connection):
-    food = []
-    food_lock = _thread.allocate_lock()
-    print("[INFO] Getting food positions...")
-    Fdata = [] #our food list
-    Foodlen = int(Cs.recv(buffersize).decode('utf-8')) #get the length of the food list
-    Cs.send(bytes("          ",'utf-8')) #send an empty 10 byte confirm signal
-    try:
-        for getfood in range(0,Foodlen):
-            tmpfood = netcode.recieve_data(Cs,buffersize,evaluate=True)
-            Fdata.append(tmpfood[:])
-    except:
-        print("    [ERROR] Failed to recieve food positions!")
-        connection = False
-if(connection):
-    for x in range(0,len(Fdata)): #load it into our Food array
-        food.append(Square()) #create a new Square() object
-        food[len(food) - 1].set_stats(Fdata[x]) #load stats into it
-        food[len(food) - 1].color = [255,255,0]
-        food[len(food) - 1].textcolor = None
-        food[len(food) - 1].food = True
-    print("    [OK] Recieved food stats!")
-
-#we also need to get our client number...which can be sent without the need for extensive buffersize setups and all that.
-if(connection):
-    print("[INFO] Recieving client number...")
-    try:
-        clientnum = int(Cs.recv(buffersize).decode('utf-8'))
-        Cs.send(bytes("          ",'utf-8')) #send an acknowledge signal
-    except:
-        print("    [ERROR] Failed to get our client number! (sad =( ).")
-        connection = False
-if(connection):
-    print("    [OK] Recieved client number " + str(clientnum))
-
-pygame.time.delay(500) #delay a bit so we don't disconnect over a connection error
+###get a player name
+##name = Mhandler.get_input(display,"Please give a name")
+##
+###get the server's IP address
+##ipaddr = Mhandler.get_input(display,"Please give me the IP of the server")
+##faulty = False
+##while True: #get the port number of the server
+##    if(faulty == False):
+##        portnum = Mhandler.get_input(display,"Please give me the port number of the server")
+##    else:
+##        portnum = Mhandler.get_input(display,"Bad Portnum. Try again...")
+##    try: #valid port number?
+##        int(portnum)
+##        break #exit the endless loop of faulty port numbers
+##    except: #if not...
+##        faulty = True
+##
+###a list full of Square() objects which gets computed/drawn/updated by the Compute,Render,and Netcode threads.
+##Serversquares = []
+##Serversquares_lock = _thread.allocate_lock()
+##
+###netcode buffer size in BYTES (needs to be big enough to recieve a number up to 5 digits as a string)
+##buffersize = 10
+##
+###a flag which tells us whether we already lost the connection
+##connection = True
+##
+###attempt to connect to the server
+##Cs = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #create a python Socket object for our Client/game
+##Cs.connect((ipaddr, int(portnum))) #try to establish a socket connection with the server
+##Cs.settimeout(15) #10 second timeout limit
+##try:
+##    Cs.recv(8)
+##except:
+##    print("   [ERROR] Server didn't give connection acknowledge")
+##    connection = False
+##if(connection):
+##    print("[OK] Connection established with server " + ipaddr) #debug info
+##
+###attempt to retrieve the firstfruits of our connection - the server's pick of a connection buffer size
+##if(connection): #we made it this far?
+##    try:
+##        buffersize = Cs.recv(buffersize)
+##    except:
+##        print("    [ERROR] Couldn't even grab the starting buffersize!")
+##        connection = False
+##if(connection):
+##    buffersize = int(buffersize.decode("utf-8"))
+##    print("[OK] Successfully grabbed buffer size: " + str(buffersize) + " bytes")
+##    Cs.send(justify("[ACK]",buffersize).encode('utf-8')) #we have to send back an acknowledgement packet. The content of it doesn't matter, as strange as it may seem.
+##
+###we need a local player object
+##player = Square()
+##player_lock = _thread.allocate_lock()
+##
+###now we need to recieve some data from the server. The square's starting position, mainly.
+##if(connection):
+##    print("[INFO] Recieving start data...")
+##    try:
+##        Cdata = netcode.recieve_data(Cs,buffersize)
+##    except:
+##        print("    [ERROR] Connection Lost!!!!")
+##        connection = False
+##if(connection):
+##    player.set_stats(eval(Cdata))
+##    print("    [OK] Recieved start data.")
+##
+###next we need to send back some info - our name.
+##if(connection):
+##    print("[INFO] Sending player name...")
+##    player.name = name
+##    Sendstuff = gather_data(player)
+##    try:
+##        netcode.send_data(Cs,buffersize,Sendstuff)
+##    except: #we probably timed out on our recieve signal...
+##        print("    [ERROR] Couldn't send player name!")
+##        connection = False
+##if(connection):
+##    print("    [OK] Successfully sent name!")
+##
+###now we need to get all the pieces of food in the game.
+###a list full of Square() objects which can only be eaten @ the moment (could change)
+##if(connection):
+##    food = []
+##    food_lock = _thread.allocate_lock()
+##    print("[INFO] Getting food positions...")
+##    Fdata = [] #our food list
+##    Foodlen = int(Cs.recv(buffersize).decode('utf-8')) #get the length of the food list
+##    Cs.send(bytes("          ",'utf-8')) #send an empty 10 byte confirm signal
+##    try:
+##        for getfood in range(0,Foodlen):
+##            tmpfood = netcode.recieve_data(Cs,buffersize,evaluate=True)
+##            Fdata.append(tmpfood[:])
+##    except:
+##        print("    [ERROR] Failed to recieve food positions!")
+##        connection = False
+##if(connection):
+##    for x in range(0,len(Fdata)): #load it into our Food array
+##        food.append(Square()) #create a new Square() object
+##        food[len(food) - 1].set_stats(Fdata[x]) #load stats into it
+##        food[len(food) - 1].color = [255,255,0]
+##        food[len(food) - 1].textcolor = None
+##        food[len(food) - 1].food = True
+##    print("    [OK] Recieved food stats!")
+##
+###we also need to get our client number...which can be sent without the need for extensive buffersize setups and all that.
+##if(connection):
+##    print("[INFO] Recieving client number...")
+##    try:
+##        clientnum = int(Cs.recv(buffersize).decode('utf-8'))
+##        Cs.send(bytes("          ",'utf-8')) #send an acknowledge signal
+##    except:
+##        print("    [ERROR] Failed to get our client number! (sad =( ).")
+##        connection = False
+##if(connection):
+##    print("    [OK] Recieved client number " + str(clientnum))
+##
+##pygame.time.delay(500) #delay a bit so we don't disconnect over a connection error
+##
+###stats variables
+##CPS = 1 #Compute cycles Per Second (Compute thread)
+##CPS_lock = _thread.allocate_lock()
+##FPS = 1 #Frames Per Second (Renderer thread)
+##FPS_lock = _thread.allocate_lock()
+##TPS = 1 #Ticks Per Second (Networking thread)
+##TPS_lock = _thread.allocate_lock()
+##PING = 1 #ping time (ms)
+##PING_lock = _thread.allocate_lock()
+##lobbystats = ["connecting to server",15] #a list which gives us stats about the state of our lobby
+##lobbystats_lock = _thread.allocate_lock()
+##
+###we don't want to stop yet, do we?
+##running = connection #if we managed to stay connected this whole time...
+##running_lock = _thread.allocate_lock()
+##
+###our mouse position
+##mousepos = [200,200]
+##mousepos_lock = _thread.allocate_lock()
 
 #stats variables
 CPS = 1 #Compute cycles Per Second (Compute thread)
@@ -398,14 +421,18 @@ lobbystats = ["connecting to server",15] #a list which gives us stats about the 
 lobbystats_lock = _thread.allocate_lock()
 
 #we don't want to stop yet, do we?
-running = connection #if we managed to stay connected this whole time...
+running = True #if we managed to stay connected this whole time...
 running_lock = _thread.allocate_lock()
 
 #our mouse position
 mousepos = [200,200]
 mousepos_lock = _thread.allocate_lock()
 
-def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the most computationally heavy part of the game)
+#are we in the "in-game" menu?
+in_menu = False
+in_menu_lock = _thread.allocate_lock()
+
+def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the most computationally heavy part of the game)
     global player
     global FPS
     global TPS
@@ -414,17 +441,37 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
     global lobbystats
     global Serversquares
     global mousepos
+    global in_menu
+    global running #we wants the global version so we can end all our tasks at once
+
+    #create a menu object so we can get a UI when ESC is pressed
+    rm_handler = menu.Menuhandler()
+
+    #create the menu
+    rm_handler.create_menu([""],[["",""]],[],[],"") #the blank menu we get during gameplay
+    rm_handler.create_menu(["Continue","Options","Disconnect"],[["",""],["",""],["",""]],[[0,0],[1,2]],[],"In-Game Menu")
+    rm_handler.create_menu(["Back","Stretched Gameplay","Change Player Name"],[["",""],["True","False"],["",""]],[[0,1]],[],"In-Game Options")
+
+    #menu option flags
+    NAME_OPTION = [[2,None], 2]
+    DISCONNECT_OPTION = [[2,None], 1]
+    BACK_OPTION = [[0,None],2]
+    CONTINUE_OPTION = [[0,None], 1]
+
+    #we pressed an option?
+    pressed_option = None
 
     #local unlocked variables
     Rclock = pygame.time.Clock()
     performance = [0,0,0,0]
-    
-    global running #we wants the global version so we can end all our tasks at once
 
     while True: #main renderer loop
         #get our window scale sizes
         scaleX = display.get_width() / STARTSIZE[0] * 1.0
         scaleY = display.get_height() / STARTSIZE[1] * 1.0
+
+        #flush out the printer queue
+        printer.print_msgs()
         
         with running_lock: #if we doesn't wants to be here anymore?
             if(running == False):
@@ -436,10 +483,37 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
                     running = False
             elif(event.type == pygame.MOUSEMOTION):
                 with mousepos_lock:
-                    mousepos = [event.pos[0] / scaleX,event.pos[1] / scaleY]
-            elif(event.type == pygame.MOUSEBUTTONDOWN): #then we split!!!
-                with player_lock:
-                    player.split(mousepos)
+                    if(stretch):
+                        mousepos = [int(event.pos[0] / scaleX),int(event.pos[1] / scaleY)]
+                    else:
+                        if(scaleX > scaleY):
+                            mousepos = [int((STARTSIZE[0] * scaleY / 2.0 - display.get_width() / 2.0) / 2.0 + event.pos[0] / scaleY),int(event.pos[1] / scaleY)]
+                        else:
+                            mousepos = [int(event.pos[0] / scaleX),int((STARTSIZE[1] * scaleX / 2.0 - display.get_height() / 2.0) + event.pos[1] / scaleX)]
+            elif(event.type == pygame.MOUSEBUTTONDOWN): #then we split!!! (provided we're not in the menu ATM)
+                if(rm_handler.currentmenu == 0):
+                    with player_lock:
+                        player.split(mousepos)
+                else: #we triggered our menu collision system!!!
+                    settings = rm_handler.grab_settings(["Stretched Gameplay"])
+                    with mousepos_lock:
+                        pressed_option = rm_handler.menu_collision([0,0],[display.get_width(),display.get_height()],mousepos)
+                    if(pressed_option == NAME_OPTION): #we wants to change our name, eh?
+                        player.name = rm_handler.get_input(display,"Please input your new player name")
+                    elif(pressed_option == DISCONNECT_OPTION): #we're done playing for now?
+                        with running_lock:
+                            running = False
+                    elif(pressed_option == BACK_OPTION): #we need to check what we set "Stretched Gameplay" to!
+                        stretch = eval(settings[0])
+                    elif(pressed_option == CONTINUE_OPTION): #are we continuing gameplay? If so, we need to let the compute thread know...
+                        with in_menu_lock:
+                            in_menu = False
+            elif(event.type == pygame.KEYDOWN):
+                if(event.key == pygame.K_ESCAPE): #we opened the secret in-game menu!!!
+                    rm_handler.currentmenu = 1
+                    with in_menu_lock:
+                        in_menu = True
+                    
 
         with food_lock: #draw all the food
             foodlen = len(food)
@@ -496,15 +570,30 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
         #draw the winner's name of the previous round if we're waiting for players...
         with lobbystats_lock:
             if(lobbystats[0] == "wait"): #we're in lobby waiting for game start?
-                xpos = 320 - len(list("Winner - " + scoreboard[0][0])) * 11
-                draw_words("Winner - " + scoreboard[0][0],[xpos,230],[0,0,255],2)
+                if(len(scoreboard) > 0):
+                    xpos = 320 - len(list("Winner - " + scoreboard[0][0])) * 11
+                    draw_words("Winner - " + scoreboard[0][0],[xpos,230],[0,0,255],2)
+
+        #draw our menu...
+        if(rm_handler.currentmenu != 0):
+            with mousepos_lock:
+                rm_handler.draw_menu([0,0],[screen.get_width(),screen.get_height()],screen,mousepos)
 
         #scale "screen", and blit it onto "display"
-        tmpsurface = pygame.transform.scale(screen,[display.get_width(),display.get_height()])
-        display.blit(tmpsurface,[0,0])
+        if(stretch):
+            tmpsurface = pygame.transform.scale(screen,[display.get_width(),display.get_height()])
+            display.blit(tmpsurface,[0,0])
+        else: #we decided NOT to stretch our window so much?
+            if(scaleX > scaleY):
+                tmpsurface = pygame.transform.scale(screen,[int(STARTSIZE[0] * scaleY),int(STARTSIZE[1] * scaleY)])
+                display.blit(tmpsurface,[int(display.get_width() / 2.0 - STARTSIZE[0] * scaleY / 2.0),int(display.get_height() / 2.0 - STARTSIZE[1] * scaleY / 2.0)])
+            else:
+                tmpsurface = pygame.transform.scale(screen,[int(STARTSIZE[0] * scaleX),int(STARTSIZE[1] * scaleX)])
+                display.blit(tmpsurface,[int(display.get_width() / 2.0 - STARTSIZE[0] * scaleX / 2.0),int(display.get_height() / 2.0 - STARTSIZE[1] * scaleX / 2.0)])
         
         pygame.display.flip() #update our screen
         screen.fill([0,0,0]) #fill our screen with everyone's favorite color
+        display.fill([0,0,0])
 
         Rclock.tick(900) #we want this running AS FAST AS POSSIBLE (within 3 digits)
 
@@ -517,23 +606,20 @@ def renderer(): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the 
             performance[2] = TPS
         with PING_lock:
             performance[3] = PING
-            
-    pygame.quit() #exit our pygame window
 
 def compute(): #the computation thread of SquareIO; handling movement, mostly at the moment.
     global player
     global running #we wants the global version so we can end all our tasks at once
     global CPS
     global mousepos
+    global in_menu
+    global player_lock
 
     #local variables, no threading needed
     mousepos = [0,0] #a local function variable which we DON'T need to lock at ALL.
     Cclock = pygame.time.Clock()
 
     while True: #main computation loop
-        #flush out the printer queue
-        printer.print_msgs()
-        
         with running_lock: #if we doesn't wants to be here anymore?
             if(running == False):
                 break
@@ -542,27 +628,30 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
             tmpCPS = CPS
         with mousepos_lock:
             cursorpos = mousepos[:]
-        with player_lock:
-            player.rejoin() #check if we can rejoin any of our player's cells, and if so, do that.
-            for x in range(0,len(player.direction)):
-                TMPspeed = ((player.speedS - (player.size[x] * player.slowdown)) / tmpCPS) * player.direction[x][2]
-                if(TMPspeed < (5 / tmpCPS)): #if we're not moving??? or backwards???
-                    TMPspeed = (5.0 / tmpCPS) #let's be nice, let people move 5 pixels per second then...
-                if(player.pos[x][0] < cursorpos[0] + 5 and player.pos[x][0] > cursorpos[0] - 5): #to avoid jumpy standstill on players, if our mouse is centered on our cell, don't move it.
-                    if(player.pos[x][1] < cursorpos[1] + 5 and player.pos[x][1] > cursorpos[1] - 5):
-                        player.direction[x] = [0.0,0.0,1.0]
+        with in_menu_lock:
+            tmp_menu_flag = in_menu
+        if(tmp_menu_flag != True): #make sure we're not moving while we're in a menu
+            with player_lock:
+                player.rejoin() #check if we can rejoin any of our player's cells, and if so, do that.
+                for x in range(0,len(player.direction)):
+                    TMPspeed = ((player.speedS - (player.size[x] * player.slowdown)) / tmpCPS) * player.direction[x][2]
+                    if(TMPspeed < (5 / tmpCPS)): #if we're not moving??? or backwards???
+                        TMPspeed = (5.0 / tmpCPS) #let's be nice, let people move 5 pixels per second then...
+                    if(player.pos[x][0] < cursorpos[0] + 5 and player.pos[x][0] > cursorpos[0] - 5): #to avoid jumpy standstill on players, if our mouse is centered on our cell, don't move it.
+                        if(player.pos[x][1] < cursorpos[1] + 5 and player.pos[x][1] > cursorpos[1] - 5):
+                            player.direction[x] = [0.0,0.0,1.0]
+                        else:
+                            TMPplayerdirection = find_slope([cursorpos[0] - player.pos[x][0], cursorpos[1] - player.pos[x][1]],TMPspeed)
+                            player.direction[x][0] = TMPplayerdirection[0]
+                            player.direction[x][1] = TMPplayerdirection[1]
                     else:
                         TMPplayerdirection = find_slope([cursorpos[0] - player.pos[x][0], cursorpos[1] - player.pos[x][1]],TMPspeed)
                         player.direction[x][0] = TMPplayerdirection[0]
                         player.direction[x][1] = TMPplayerdirection[1]
-                else:
-                    TMPplayerdirection = find_slope([cursorpos[0] - player.pos[x][0], cursorpos[1] - player.pos[x][1]],TMPspeed)
-                    player.direction[x][0] = TMPplayerdirection[0]
-                    player.direction[x][1] = TMPplayerdirection[1]
-                if(player.direction[x][2] > 1): #decrease the player's boost amount each CPS
-                    player.direction[x][2] -= (player.slowdown * player.size[x]) / tmpCPS
-                player.pos[x][0] += player.direction[x][0]
-                player.pos[x][1] += player.direction[x][1]
+                    if(player.direction[x][2] > 1): #decrease the player's boost amount each CPS
+                        player.direction[x][2] -= (player.slowdown * player.size[x]) / tmpCPS
+                    player.pos[x][0] += player.direction[x][0]
+                    player.pos[x][1] += player.direction[x][1]
 
         with Serversquares_lock: #update ALL the other players positions
             for computesquares in range(0,len(Serversquares)):
@@ -587,7 +676,7 @@ def network(): #the netcode thread!
     global lobbystats
     global running
 
-    Nclock = pygame.time.Clock() #a pygame clock we use to try achieve 30TPS
+    Nclock = pygame.time.Clock() #a pygame clock for PPS
 
     while True: #main netcode loop
         #get data about whether we've been EATEN by someone?????!!!!!???
@@ -687,9 +776,239 @@ def network(): #the netcode thread!
         with TPS_lock:
             TPS = justify(str(int(round(Nclock.get_fps(),0))), 3)
 
-#thread start code
-_thread.start_new_thread(network,())
-_thread.start_new_thread(compute,())
+def start_game(name,port,ip,stretch):
+    global running
+    global player_lock
+    global food_lock
+    global player
+    global food
+    global buffersize
+    global Serversquares
+    global Serversquares_lock
+    global Cs
+    global clientnum
 
-#start our main thread
-renderer()
+    #get the server's IP address
+    ipaddr = ip
+    #get the server's port
+    portnum = port
+
+    #a list full of Square() objects which gets computed/drawn/updated by the Compute,Render,and Netcode threads.
+    Serversquares = []
+    Serversquares_lock = _thread.allocate_lock()
+
+    #netcode buffer size in BYTES (needs to be big enough to recieve a number up to 5 digits as a string)
+    buffersize = 10
+
+    #a flag which tells us whether we already lost the connection
+    connection = True
+
+    #attempt to connect to the server
+    Cs = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #create a python Socket object for our Client/game
+    try:
+        Cs.connect((ipaddr, int(portnum))) #try to establish a socket connection with the server
+    except:
+        print("    [ERROR] Couldn't connect to server!")
+        connection = False
+    if(connection):
+        print("[OK] Connected to server!")
+        Cs.settimeout(15) #10 second timeout limit
+        try:
+            Cs.recv(8)
+        except:
+            print("   [ERROR] Server didn't give connection acknowledge")
+            connection = False
+    if(connection):
+        print("[OK] Connection established with server " + ipaddr) #debug info
+
+    #attempt to retrieve the firstfruits of our connection - the server's pick of a connection buffer size
+    if(connection): #we made it this far?
+        try:
+            buffersize = Cs.recv(buffersize)
+        except:
+            print("    [ERROR] Couldn't even grab the starting buffersize!")
+            connection = False
+    if(connection):
+        buffersize = int(buffersize.decode("utf-8"))
+        print("[OK] Successfully grabbed buffer size: " + str(buffersize) + " bytes")
+        Cs.send(justify("[ACK]",buffersize).encode('utf-8')) #we have to send back an acknowledgement packet. The content of it doesn't matter, as strange as it may seem.
+
+    #we need a local player object
+    player = Square()
+    player_lock = _thread.allocate_lock()
+
+    #now we need to recieve some data from the server. The square's starting position, mainly.
+    if(connection):
+        print("[INFO] Recieving start data...")
+        try:
+            Cdata = netcode.recieve_data(Cs,buffersize)
+        except:
+            print("    [ERROR] Connection Lost!!!!")
+            connection = False
+    if(connection):
+        player.set_stats(eval(Cdata))
+        print("    [OK] Recieved start data.")
+
+    #next we need to send back some info - our name.
+    if(connection):
+        print("[INFO] Sending player name...")
+        player.name = name
+        Sendstuff = gather_data(player)
+        try:
+            netcode.send_data(Cs,buffersize,Sendstuff)
+        except: #we probably timed out on our recieve signal...
+            print("    [ERROR] Couldn't send player name!")
+            connection = False
+    if(connection):
+        print("    [OK] Successfully sent name!")
+
+    #now we need to get all the pieces of food in the game.
+    #a list full of Square() objects which can only be eaten @ the moment (could change)
+    if(connection):
+        food = []
+        food_lock = _thread.allocate_lock()
+        print("[INFO] Getting food positions...")
+        Fdata = [] #our food list
+        Foodlen = int(Cs.recv(buffersize).decode('utf-8')) #get the length of the food list
+        Cs.send(bytes("          ",'utf-8')) #send an empty 10 byte confirm signal
+        try:
+            for getfood in range(0,Foodlen):
+                tmpfood = netcode.recieve_data(Cs,buffersize,evaluate=True)
+                Fdata.append(tmpfood[:])
+        except:
+            print("    [ERROR] Failed to recieve food positions!")
+            connection = False
+    if(connection):
+        for x in range(0,len(Fdata)): #load it into our Food array
+            food.append(Square()) #create a new Square() object
+            food[len(food) - 1].set_stats(Fdata[x]) #load stats into it
+            food[len(food) - 1].color = [255,255,0]
+            food[len(food) - 1].textcolor = None
+            food[len(food) - 1].food = True
+        print("    [OK] Recieved food stats!")
+
+    #we also need to get our client number...which can be sent without the need for extensive buffersize setups and all that.
+    if(connection):
+        print("[INFO] Recieving client number...")
+        try:
+            clientnum = int(Cs.recv(buffersize).decode('utf-8'))
+            Cs.send(bytes("          ",'utf-8')) #send an acknowledge signal
+        except:
+            print("    [ERROR] Failed to get our client number! (sad =( ).")
+            connection = False
+    if(connection):
+        print("    [OK] Recieved client number " + str(clientnum))
+
+    pygame.time.delay(500) #delay a bit so we don't disconnect over a connection error
+
+    #make sure our "running" variable is synced with our connection variable
+    running = connection
+
+    #thread start code
+    _thread.start_new_thread(network,())
+    _thread.start_new_thread(compute,())
+
+    #start our main thread
+    renderer(stretch)
+
+def get_port(m_handler):
+    faulty = False
+    while True: #get the port number of the server
+        if(faulty == False):
+            portnum = m_handler.get_input(display,"Please give me the port number of the server")
+        else:
+            portnum = m_handler.get_input(display,"Bad Portnum. Try again...")
+        try: #valid port number?
+            int(portnum)
+            break #exit the endless loop of faulty port numbers
+        except: #if not...
+            faulty = True
+    return portnum
+
+#we needs to set up a menu system!
+m_handler = menu.Menuhandler()
+
+#we're still running our menu?
+playing = True
+
+#we needs to know where mouse is...
+mouse_pos = [0,0]
+
+#we pressed anything?
+pressed_option = None
+
+#add some menus!
+m_handler.create_menu(["Play","Options","Exit"],[["",""],["",""],["",""]],[[1,1]],[],"Square-IO Multiplayer")
+m_handler.create_menu(["Back","Stretched Gameplay","Server IP","Server Port Number","Player Name"],[["",""],["True","False"],["",""],["",""],["",""]],[[0,0]],[],"Options")
+
+#our exit buttons constant
+EXIT_BUTTONS = [[[2, None], 0]]
+
+#the back button from the settings menu
+BACK_BUTTON = [[0,None], 1]
+
+#our name, server IP and server port buttons
+NAME_BUTTON = [[4,None], 1]
+PORT_BUTTON = [[3,None], 1]
+IP_BUTTON = [[2,None], 1]
+
+#start button
+GAME_START_BUTTON = [[0,None], 0]
+
+#default name, IP, and port settings
+NAME = "Default"
+IP = "0.0.0.0"
+PORT = "5030"
+
+#do we want to stretch our game, or no?
+stretch = True
+
+#we're not ingame yet, so this variable goes false.
+with running_lock:
+    running = False
+
+while playing: #basic menu setup to make the game more UI friendly
+    m_handler.menuscale = display.get_width() / DEFAULTSIZE[0] * 1.0
+    
+    #event loop
+    for event in pygame.event.get():
+        if(event.type == pygame.QUIT): #we wants out???
+            playing = False
+        elif(event.type == pygame.MOUSEMOTION): #sync our mouse position to the mouse_pos variable
+            mouse_pos = event.pos[:]
+        elif(event.type == pygame.MOUSEBUTTONDOWN): #implement our menu collision system
+            settings = m_handler.grab_settings(["Stretched Gameplay"])
+            pressed_option = m_handler.menu_collision([0,0],[display.get_width(),display.get_height()],mouse_pos)
+            #check if we wants to quit?
+            if(pressed_option in EXIT_BUTTONS):
+                playing = False
+            #does we wants to change our IP?
+            elif(pressed_option == IP_BUTTON):
+                IP = m_handler.get_input(display,"Please enter the server IP address")
+            #does we wants to change our PORT?
+            elif(pressed_option == PORT_BUTTON):
+                PORT = get_port(m_handler)
+            #does we wants to change our player name?
+            elif(pressed_option == NAME_BUTTON):
+                NAME = m_handler.get_input(display,"Please enter your player name")
+            #does we wants to START THE GAME???
+            elif(pressed_option == GAME_START_BUTTON):
+                with running_lock:
+                    running = True
+                with in_menu_lock:
+                    in_menu = False
+                start_game(NAME,PORT,IP,stretch)
+            #if we're heading back from the settings menu, we need to check that we synced our settings with the ones in the menu...
+            elif(pressed_option == BACK_BUTTON):
+                stretch = eval(settings[0])
+
+    #draw our menu
+    m_handler.draw_menu([0,0],[display.get_width(),display.get_height()],display,mouse_pos)
+
+    #flip the screen
+    pygame.display.flip()
+
+    #fill it with black for next frame
+    display.fill([0,0,0])
+
+pygame.quit()

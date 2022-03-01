@@ -415,7 +415,7 @@ def manage_client(IP,PORT): #manages a single client connection
         with obj_lock:
             obj[clientnum - 1].set_stats(Cdata,clientnum) #*BOOM* - that was easy
 
-        Sclock.tick(5) #try to get 5 packet exchanges per second (probably not going to happen unless on LAN)
+        Sclock.tick() #try to get as many packet exchanges per second as we can
         
     with obj_lock:
         try: #we only need to change this flag if the person disconnected AFTER the player's object was created
