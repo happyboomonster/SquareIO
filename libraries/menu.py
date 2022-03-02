@@ -247,12 +247,28 @@ class Menu():
                     break
         return [returnedoption, returnedbutton]
 
+    def load_settings(self,settings,label): #loads settings values into [label] setting. settings list format: [[optionsetting,optionstate]]
+        for x in range(0,len(label)): #iterate through all the settings
+            for b in range(0,len(self.options)): #find if "label[x]" == "self.options[b]"
+                if(label[x] == self.options[b]): #then we load the setting values into this index!
+                    self.optionsetting[b] == settings[x][0] #option in str format
+                    self.optionstate[b] == settings[x][1] #actual option index/whatever state
+                    break #and then exit the "for b..." loop
+
+    def reconfigure_setting(self,optiontype,optionsetting,optionstate,label): #you can change the settings TYPE of an option, but not its name.
+        for x in range(0,len(self.options)):
+            if(self.options[x] == label): #we found the option we want to reconfigure?
+                self.optionstype[x] = optiontype[:] #availiable options
+                self.optionstate[x] = optionstate #index
+                self.optionsetting[x] = optionsetting #str
+                break #exit this function!
+
     def grab_settings(self,settings): #give a list of the names of settings you want.
         #The function will output a list of the same length, with the settings' value in their respective places.
         for x in range(0,len(settings)):
             for b in range(0,len(self.options)):
                 if(settings[x] == self.options[b]): #we found a name match?
-                    settings[x] = self.optionsetting[b] #insert the value into the list
+                    settings[x] = [self.optionsetting[b],self.optionstate[b]] #insert the value into the list
                     break
                 if(len(self.options) == (b + 1)): #we didn't find the value?
                     settings[x] = None #make sure the caller of this function knows there's NO SETTING called {settings[x]}
@@ -315,6 +331,12 @@ class Menuhandler():
 
     def grab_settings(self,settings):
         return self.menus[self.currentmenu][0].grab_settings(settings)
+
+    def load_settings(self,settings,label):
+        self.menus[self.currentmenu][0].load_settings(settings,label)
+
+    def reconfigure_setting(self,optiontype,optionsetting,optionstate,label):
+        self.menus[self.currentmenu][0].reconfigure_setting(optiontype,optionsetting,optionstate,label)
 
     def menu_collision(self,coords,dimensions,cursorpos,inc=None):
         self.menus[self.currentmenu][0].menuscale = self.menuscale #make sure we sync our menuscale with the one in the menu here

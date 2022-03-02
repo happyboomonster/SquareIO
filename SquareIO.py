@@ -7,6 +7,7 @@ import math #for trigonometry + sqrt, used in find_slope()
 import socket
 import netcode #for netcode
 import menu #for a nice looking menu
+import pickle #for storing and restoring our settings after restarting the game
 
 def find_slope(distance,speed): #used in determining direction of your player's movement
     #distance is an [x,y] list which is the distance between you and the mouse pointer
@@ -267,147 +268,6 @@ printer = Printer()
 #create a menu object
 Mhandler = menu.Menuhandler()
 
-
-
-###get a player name
-##name = Mhandler.get_input(display,"Please give a name")
-##
-###get the server's IP address
-##ipaddr = Mhandler.get_input(display,"Please give me the IP of the server")
-##faulty = False
-##while True: #get the port number of the server
-##    if(faulty == False):
-##        portnum = Mhandler.get_input(display,"Please give me the port number of the server")
-##    else:
-##        portnum = Mhandler.get_input(display,"Bad Portnum. Try again...")
-##    try: #valid port number?
-##        int(portnum)
-##        break #exit the endless loop of faulty port numbers
-##    except: #if not...
-##        faulty = True
-##
-###a list full of Square() objects which gets computed/drawn/updated by the Compute,Render,and Netcode threads.
-##Serversquares = []
-##Serversquares_lock = _thread.allocate_lock()
-##
-###netcode buffer size in BYTES (needs to be big enough to recieve a number up to 5 digits as a string)
-##buffersize = 10
-##
-###a flag which tells us whether we already lost the connection
-##connection = True
-##
-###attempt to connect to the server
-##Cs = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #create a python Socket object for our Client/game
-##Cs.connect((ipaddr, int(portnum))) #try to establish a socket connection with the server
-##Cs.settimeout(15) #10 second timeout limit
-##try:
-##    Cs.recv(8)
-##except:
-##    print("   [ERROR] Server didn't give connection acknowledge")
-##    connection = False
-##if(connection):
-##    print("[OK] Connection established with server " + ipaddr) #debug info
-##
-###attempt to retrieve the firstfruits of our connection - the server's pick of a connection buffer size
-##if(connection): #we made it this far?
-##    try:
-##        buffersize = Cs.recv(buffersize)
-##    except:
-##        print("    [ERROR] Couldn't even grab the starting buffersize!")
-##        connection = False
-##if(connection):
-##    buffersize = int(buffersize.decode("utf-8"))
-##    print("[OK] Successfully grabbed buffer size: " + str(buffersize) + " bytes")
-##    Cs.send(justify("[ACK]",buffersize).encode('utf-8')) #we have to send back an acknowledgement packet. The content of it doesn't matter, as strange as it may seem.
-##
-###we need a local player object
-##player = Square()
-##player_lock = _thread.allocate_lock()
-##
-###now we need to recieve some data from the server. The square's starting position, mainly.
-##if(connection):
-##    print("[INFO] Recieving start data...")
-##    try:
-##        Cdata = netcode.recieve_data(Cs,buffersize)
-##    except:
-##        print("    [ERROR] Connection Lost!!!!")
-##        connection = False
-##if(connection):
-##    player.set_stats(eval(Cdata))
-##    print("    [OK] Recieved start data.")
-##
-###next we need to send back some info - our name.
-##if(connection):
-##    print("[INFO] Sending player name...")
-##    player.name = name
-##    Sendstuff = gather_data(player)
-##    try:
-##        netcode.send_data(Cs,buffersize,Sendstuff)
-##    except: #we probably timed out on our recieve signal...
-##        print("    [ERROR] Couldn't send player name!")
-##        connection = False
-##if(connection):
-##    print("    [OK] Successfully sent name!")
-##
-###now we need to get all the pieces of food in the game.
-###a list full of Square() objects which can only be eaten @ the moment (could change)
-##if(connection):
-##    food = []
-##    food_lock = _thread.allocate_lock()
-##    print("[INFO] Getting food positions...")
-##    Fdata = [] #our food list
-##    Foodlen = int(Cs.recv(buffersize).decode('utf-8')) #get the length of the food list
-##    Cs.send(bytes("          ",'utf-8')) #send an empty 10 byte confirm signal
-##    try:
-##        for getfood in range(0,Foodlen):
-##            tmpfood = netcode.recieve_data(Cs,buffersize,evaluate=True)
-##            Fdata.append(tmpfood[:])
-##    except:
-##        print("    [ERROR] Failed to recieve food positions!")
-##        connection = False
-##if(connection):
-##    for x in range(0,len(Fdata)): #load it into our Food array
-##        food.append(Square()) #create a new Square() object
-##        food[len(food) - 1].set_stats(Fdata[x]) #load stats into it
-##        food[len(food) - 1].color = [255,255,0]
-##        food[len(food) - 1].textcolor = None
-##        food[len(food) - 1].food = True
-##    print("    [OK] Recieved food stats!")
-##
-###we also need to get our client number...which can be sent without the need for extensive buffersize setups and all that.
-##if(connection):
-##    print("[INFO] Recieving client number...")
-##    try:
-##        clientnum = int(Cs.recv(buffersize).decode('utf-8'))
-##        Cs.send(bytes("          ",'utf-8')) #send an acknowledge signal
-##    except:
-##        print("    [ERROR] Failed to get our client number! (sad =( ).")
-##        connection = False
-##if(connection):
-##    print("    [OK] Recieved client number " + str(clientnum))
-##
-##pygame.time.delay(500) #delay a bit so we don't disconnect over a connection error
-##
-###stats variables
-##CPS = 1 #Compute cycles Per Second (Compute thread)
-##CPS_lock = _thread.allocate_lock()
-##FPS = 1 #Frames Per Second (Renderer thread)
-##FPS_lock = _thread.allocate_lock()
-##TPS = 1 #Ticks Per Second (Networking thread)
-##TPS_lock = _thread.allocate_lock()
-##PING = 1 #ping time (ms)
-##PING_lock = _thread.allocate_lock()
-##lobbystats = ["connecting to server",15] #a list which gives us stats about the state of our lobby
-##lobbystats_lock = _thread.allocate_lock()
-##
-###we don't want to stop yet, do we?
-##running = connection #if we managed to stay connected this whole time...
-##running_lock = _thread.allocate_lock()
-##
-###our mouse position
-##mousepos = [200,200]
-##mousepos_lock = _thread.allocate_lock()
-
 #stats variables
 CPS = 1 #Compute cycles Per Second (Compute thread)
 CPS_lock = _thread.allocate_lock()
@@ -450,13 +310,14 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
     #create the menu
     rm_handler.create_menu([""],[["",""]],[],[],"") #the blank menu we get during gameplay
     rm_handler.create_menu(["Continue","Options","Disconnect"],[["",""],["",""],["",""]],[[0,0],[1,2]],[],"In-Game Menu")
-    rm_handler.create_menu(["Back","Stretched Gameplay","Change Player Name"],[["",""],["True","False"],["",""]],[[0,1]],[],"In-Game Options")
+    rm_handler.create_menu(["Back","Stretched Gameplay","Change Player Name"],[[""],["True","False"],[player.name]],[[0,1]],[],"In-Game Options")
 
     #menu option flags
     NAME_OPTION = [[2,None], 2]
     DISCONNECT_OPTION = [[2,None], 1]
     BACK_OPTION = [[0,None],2]
     CONTINUE_OPTION = [[0,None], 1]
+    OPTIONS_OPTION = [[1,None], 1]
 
     #we pressed an option?
     pressed_option = None
@@ -495,25 +356,27 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
                     with player_lock:
                         player.split(mousepos)
                 else: #we triggered our menu collision system!!!
-                    settings = rm_handler.grab_settings(["Stretched Gameplay"])
+                    settings = rm_handler.grab_settings(["Stretched Gameplay","Change Player Name"])
                     with mousepos_lock:
                         pressed_option = rm_handler.menu_collision([0,0],[display.get_width(),display.get_height()],mousepos)
                     if(pressed_option == NAME_OPTION): #we wants to change our name, eh?
                         player.name = rm_handler.get_input(display,"Please input your new player name")
+                        rm_handler.reconfigure_setting([player.name],player.name,0,"Change Player Name")
                     elif(pressed_option == DISCONNECT_OPTION): #we're done playing for now?
                         with running_lock:
                             running = False
                     elif(pressed_option == BACK_OPTION): #we need to check what we set "Stretched Gameplay" to!
-                        stretch = eval(settings[0])
+                        stretch = eval(settings[0][0])
                     elif(pressed_option == CONTINUE_OPTION): #are we continuing gameplay? If so, we need to let the compute thread know...
                         with in_menu_lock:
                             in_menu = False
+                    elif(pressed_option == OPTIONS_OPTION): #we entered the options menu? we need to load the settings in that case.
+                        rm_handler.reconfigure_setting(["True","False"],str(stretch),["True","False"].index(str(stretch)),"Stretched Gameplay")
             elif(event.type == pygame.KEYDOWN):
                 if(event.key == pygame.K_ESCAPE): #we opened the secret in-game menu!!!
                     rm_handler.currentmenu = 1
                     with in_menu_lock:
                         in_menu = True
-                    
 
         with food_lock: #draw all the food
             foodlen = len(food)
@@ -606,6 +469,7 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
             performance[2] = TPS
         with PING_lock:
             performance[3] = PING
+    return [stretch, player.name] #make sure we know if we changed anything regarding these flags!
 
 def compute(): #the computation thread of SquareIO; handling movement, mostly at the moment.
     global player
@@ -909,7 +773,7 @@ def start_game(name,port,ip,stretch):
     _thread.start_new_thread(compute,())
 
     #start our main thread
-    renderer(stretch)
+    return renderer(stretch)
 
 def get_port(m_handler):
     faulty = False
@@ -937,12 +801,30 @@ mouse_pos = [0,0]
 #we pressed anything?
 pressed_option = None
 
+#default name, IP, and port settings
+NAME = "Default"
+IP = "0.0.0.0"
+PORT = "5030"
+
 #add some menus!
-m_handler.create_menu(["Play","Options","Exit"],[["",""],["",""],["",""]],[[1,1]],[],"Square-IO Multiplayer")
-m_handler.create_menu(["Back","Stretched Gameplay","Server IP","Server Port Number","Player Name"],[["",""],["True","False"],["",""],["",""],["",""]],[[0,0]],[],"Options")
+m_handler.create_menu(["Play","Options","Exit"],[[""],[""],[""]],[[1,1]],[],"Square-IO Multiplayer")
+m_handler.create_menu(["Back","Stretched Gameplay","Server IP","Server Port Number","Player Name"],[[""],["True","False"],[IP],[PORT],[NAME]],[[0,0]],[],"Options")
+
+#we're going to need this file to store, and recover our settings
+options_file = open("save/options.pkl","rb+")
+settings = pickle.load(options_file)[:]
+options_file.close()
+
+#load IP, PORT, and NAME variables
+IP = settings[1][0]
+PORT = settings[2][0]
+NAME = settings[3][0]
 
 #our exit buttons constant
 EXIT_BUTTONS = [[[2, None], 0]]
+
+#our options menu button
+OPTIONS_BUTTON = [[1,None], 0]
 
 #the back button from the settings menu
 BACK_BUTTON = [[0,None], 1]
@@ -954,14 +836,6 @@ IP_BUTTON = [[2,None], 1]
 
 #start button
 GAME_START_BUTTON = [[0,None], 0]
-
-#default name, IP, and port settings
-NAME = "Default"
-IP = "0.0.0.0"
-PORT = "5030"
-
-#do we want to stretch our game, or no?
-stretch = True
 
 #we're not ingame yet, so this variable goes false.
 with running_lock:
@@ -977,7 +851,8 @@ while playing: #basic menu setup to make the game more UI friendly
         elif(event.type == pygame.MOUSEMOTION): #sync our mouse position to the mouse_pos variable
             mouse_pos = event.pos[:]
         elif(event.type == pygame.MOUSEBUTTONDOWN): #implement our menu collision system
-            settings = m_handler.grab_settings(["Stretched Gameplay"])
+            if(m_handler.currentmenu == 1): #if we're inside our settings menu...
+                settings = m_handler.grab_settings(["Stretched Gameplay","Server IP","Server Port Number","Player Name"])
             pressed_option = m_handler.menu_collision([0,0],[display.get_width(),display.get_height()],mouse_pos)
             #check if we wants to quit?
             if(pressed_option in EXIT_BUTTONS):
@@ -985,22 +860,36 @@ while playing: #basic menu setup to make the game more UI friendly
             #does we wants to change our IP?
             elif(pressed_option == IP_BUTTON):
                 IP = m_handler.get_input(display,"Please enter the server IP address")
+                m_handler.reconfigure_setting([IP],IP,0,"Server IP")
             #does we wants to change our PORT?
             elif(pressed_option == PORT_BUTTON):
                 PORT = get_port(m_handler)
+                m_handler.reconfigure_setting([PORT],PORT,0,"Server Port Number")
             #does we wants to change our player name?
             elif(pressed_option == NAME_BUTTON):
                 NAME = m_handler.get_input(display,"Please enter your player name")
+                m_handler.reconfigure_setting([NAME],NAME,0,"Player Name")
             #does we wants to START THE GAME???
             elif(pressed_option == GAME_START_BUTTON):
                 with running_lock:
                     running = True
                 with in_menu_lock:
                     in_menu = False
-                start_game(NAME,PORT,IP,stretch)
+                flags = start_game(NAME,PORT,IP,eval(settings[0][0]))
+                settings[0][0] = str(flags[0])
+                settings[0][1] = ["True","False"].index(str(flags[0]))
+                settings[3][0] = flags[1]
+            #we're going into our options menu?
+            elif(pressed_option == OPTIONS_BUTTON):
+                m_handler.reconfigure_setting(["True","False"],settings[0][0],settings[0][1],"Stretched Gameplay")
+                m_handler.reconfigure_setting([settings[1][0]],settings[1][0],0,"Server IP")
+                m_handler.reconfigure_setting([settings[2][0]],settings[2][0],0,"Server Port Number")
+                m_handler.reconfigure_setting([settings[3][0]],settings[3][0],0,"Player Name")
             #if we're heading back from the settings menu, we need to check that we synced our settings with the ones in the menu...
             elif(pressed_option == BACK_BUTTON):
-                stretch = eval(settings[0])
+                NAME = settings[3][0]
+                IP = settings[1][0]
+                PORT = settings[2][0]
 
     #draw our menu
     m_handler.draw_menu([0,0],[display.get_width(),display.get_height()],display,mouse_pos)
@@ -1010,5 +899,10 @@ while playing: #basic menu setup to make the game more UI friendly
 
     #fill it with black for next frame
     display.fill([0,0,0])
+
+#save our settings (SOS!) LOL
+options_file = open("save/options.pkl","wb+")
+pickle.dump(settings, options_file)
+options_file.close()
 
 pygame.quit()
