@@ -273,7 +273,7 @@ CPS = 1 #Compute cycles Per Second (Compute thread)
 CPS_lock = _thread.allocate_lock()
 FPS = 1 #Frames Per Second (Renderer thread)
 FPS_lock = _thread.allocate_lock()
-TPS = 1 #Ticks Per Second (Networking thread)
+TPS = 1 #Ticks Per Second (Networking thread) - need to change this to PPS (Packets Per Second) next update!
 TPS_lock = _thread.allocate_lock()
 PING = 1 #ping time (ms)
 PING_lock = _thread.allocate_lock()
@@ -540,7 +540,7 @@ def network(): #the netcode thread!
     global lobbystats
     global running
 
-    Nclock = pygame.time.Clock() #a pygame clock for PPS
+    Nclock = pygame.time.Clock() #a pygame clock for PPS/TPS (currently tied together)
 
     while True: #main netcode loop
         #get data about whether we've been EATEN by someone?????!!!!!???
@@ -634,7 +634,7 @@ def network(): #the netcode thread!
                 printer.msgs.append("[ERROR] Lost connection midgame!")
             break
 
-        Nclock.tick() #tick the clock so we can see our TPS
+        Nclock.tick() #tick the clock so we can see our TPS/PPS (currently TPS is locked to PPS)
 
         #and set our TPS so we can see our swwwwwweeet performance stats
         with TPS_lock:
