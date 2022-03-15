@@ -277,6 +277,8 @@ TPS = 1 #Ticks Per Second (Networking thread) - need to change this to PPS (Pack
 TPS_lock = _thread.allocate_lock()
 PING = 1 #ping time (ms)
 PING_lock = _thread.allocate_lock()
+LOSS = 0.0 #percentage of packets lost through transmission
+LOSS_lock = _thread.allocate_lock()
 lobbystats = ["connecting to server",15] #a list which gives us stats about the state of our lobby
 lobbystats_lock = _thread.allocate_lock()
 
@@ -324,7 +326,7 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
 
     #local unlocked variables
     Rclock = pygame.time.Clock()
-    performance = [0,0,0,0]
+    performance = [0,0,0,0,100.0]
 
     while True: #main renderer loop
         #get our window scale sizes
@@ -400,7 +402,7 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
                 pass #just ignore it...
 
         #draw our performance/lobby stats
-        draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " TPS: " + justify(str(performance[2]),3) + " PING - " + justify(str(performance[3]),4),[1,1],[255,0,0],0.5)
+        draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " TPS: " + justify(str(performance[2]),3) + " PING - " + justify(str(performance[3]),4) + " PACK. LOSS - " + justify(str(performance[4]),6),[1,1],[255,0,0],0.5)
         with lobbystats_lock:
             draw_words("Lobby status - " + justify(lobbystats[0],6) + " Time - " + justify(str(int(lobbystats[1])),3),[1,470],[255,0,0],0.5)
 
@@ -469,6 +471,8 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
             performance[2] = TPS
         with PING_lock:
             performance[3] = PING
+        with LOSS_lock:
+            performance[4] = round(LOSS,3)
     return [stretch, player.name] #make sure we know if we changed anything regarding these flags!
 
 def compute(): #the computation thread of SquareIO; handling movement, mostly at the moment.
@@ -533,6 +537,7 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
 def network(): #the netcode thread!
     global TPS
     global PING
+    global LOSS
     global Cs
     global buffersize
     global player
@@ -542,6 +547,9 @@ def network(): #the netcode thread!
     global food
 
     Nclock = pygame.time.Clock() #a pygame clock for PPS/TPS (currently tied together)
+
+    loss_counter = [0,0] #a list of the packets which did and didn't make it through to us...[successful, lost]
+    LOSS_UPDATE_TIME = 30 #every LOSS_UPDATE_TIME packets our loss counter gets updated to the LOSS variable
 
     while True: #main netcode loop
         #get data about whether we've been EATEN by someone?????!!!!!???
@@ -554,7 +562,10 @@ def network(): #the netcode thread!
                 printer.msgs.append("[ERROR] Lost connection midgame!")
             break
         netpack = pack[0]
-        if(netpack != None): #we got the data successfully?
+        if(netpack == None): #the packet didn't make it through?
+            loss_counter[1] += 1 #add a failure signal to our packet loss counter
+        else: #we got the data successfully?
+            loss_counter[0] += 1 #add a success signal to our packet loss counter
             with PING_lock: #set our ping to its respective level
                 PING = pack[1]
             Edata = netpack[0]
@@ -627,6 +638,23 @@ def network(): #the netcode thread!
             with printer.msgs_lock:
                 printer.msgs.append("[ERROR] Lost connection midgame!")
             break
+
+        if(loss_counter[0] + loss_counter[1] >= LOSS_UPDATE_TIME): #update our loss counter?
+            with LOSS_lock:
+                try: #get a percentage based packet loss
+                    LOSS = 100.00 - ((loss_counter[0] + loss_counter[1]) * 100.0 / loss_counter[0])
+                except ZeroDivisionError: #we have perfect packets?
+                    LOSS = 0.00 #we got 100% packets, YESSSS indeed!
+            loss_counter = [0,0]
+
+        try:
+            if((loss_counter[0] + loss_counter[1]) * 100.0 / loss_counter[0] < 15): #we're losing every packet but 15%???
+                with running_lock:
+                    running = False
+                with printer.msgs_lock:
+                    printer.msgs.append("[ERROR] Disconnected due to EXTREME packet loss!")
+        except ZeroDivisionError: #we're getting PERFECT packets every time???
+            pass #do nothing, we're fine!
 
         Nclock.tick() #tick the clock so we can see our TPS/PPS (currently TPS is locked to PPS)
 
