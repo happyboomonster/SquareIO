@@ -11,6 +11,7 @@ import time
 #constants for starting Square() objects
 consts_lock = _thread.allocate_lock()
 SIZE = 10
+FOOD_EXCHANGES = 4 #we give clients food data every 1 in FOOD_EXCHANGES packets.
 
 #round setup variables
 timestart = None #when we started the round
@@ -187,6 +188,9 @@ def manage_client(IP,PORT): #manages a single client connection
     global timeleft
     #we are still going ahead with this, aren't we?
     running = True
+
+    #our packet count
+    packet_ct = 0 #reset this once it reaches FOOD_EXCHANGES.
     
     #create a socket connection to the client
     buffersize = 10 #default buffer size
@@ -352,12 +356,17 @@ def manage_client(IP,PORT): #manages a single client connection
         for getobjs in range(0,len(objclone)):
             gatheredobjs.append(eval(gather_data(objclone[getobjs])))
         netpack.append(gatheredobjs) #add all the square data to a list
+        
         #now we send data about changes in the food list...
-        with food_lock:
-            Fdata = []
-            for x in range(0,len(food)):
-                Fdata.append(eval(gather_data(food[x]))[:])
-        netpack.append(Fdata[:]) #add the food stuff to the netpack list
+        if(packet_ct % FOOD_EXCHANGES == 1): #but we're only sending food data every FOOD_EXCHANGES packets!
+            with food_lock:
+                Fdata = []
+                for x in range(0,len(food)):
+                    Fdata.append(eval(gather_data(food[x]))[:])
+            netpack.append(Fdata[:]) #add the food stuff to the netpack list
+        else:
+            Fdata = None #we're not giving food data this packet...SAVE THE BANDWIDTH!
+            netpack.append(Fdata) #add the food stuff to the netpack list
 
         if(Cgamephase == 'ingame'):
             with obj_lock: #make sure we shrink if we're getting too big!
@@ -410,6 +419,8 @@ def manage_client(IP,PORT): #manages a single client connection
         with obj_lock:
             if(Cdata != None): #if we managed to evaluate the data in Cdata successfully...
                 obj[clientnum - 1].set_stats(Cdata,clientnum) #*BOOM* - that was easy
+
+        packet_ct += 1 #increase how many packets we've sent so far...
 
         Sclock.tick() #try to get as many packet exchanges per second as we can
         

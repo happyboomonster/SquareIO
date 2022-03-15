@@ -579,14 +579,15 @@ def network(): #the netcode thread!
 
             #Here we need to recieve data in the Food list...
             Fdata = netpack[2]
-            with food_lock:
-                del(food)
-                food = [] #here we clear the food list, and add the updated food to it.
-                for x in range(0,len(Fdata)):
-                    food.append(Square())
-                    food[len(food) - 1].set_stats(Fdata[x])
-                    food[len(food) - 1].color = [255,255,0] #set the food color to yellow
-                    food[len(food) - 1].food = True
+            if(Fdata != None): #we're getting food data on this packet?
+                with food_lock:
+                    del(food)
+                    food = [] #here we clear the food list, and add the updated food to it.
+                    for x in range(0,len(Fdata)):
+                        food.append(Square())
+                        food[len(food) - 1].set_stats(Fdata[x])
+                        food[len(food) - 1].color = [255,255,0] #set the food color to yellow
+                        food[len(food) - 1].food = True
 
             #here we need to recieve data about changes in our player's size...
             Sdata = netpack[3]
