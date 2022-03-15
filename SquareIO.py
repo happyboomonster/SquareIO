@@ -420,7 +420,7 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
                 if(addup > largest[1]): #we found a larger player?
                     largest = [x,addup]
             #add his size + name to a scoreboard list, provided there's anything on the scoreboard list at all...
-            if(len(SS) > 0):
+            if(len(SS) > 0 and SS[c].connected == True):
                 scoreboard.append([SS[largest[0]].name,largest[1]])
                 skip.append(largest[0]) #remove the person from the list so we can find the person who is 2nd place to him
 
@@ -539,6 +539,7 @@ def network(): #the netcode thread!
     global Serversquares
     global lobbystats
     global running
+    global food
 
     Nclock = pygame.time.Clock() #a pygame clock for PPS/TPS (currently tied together)
 
@@ -553,75 +554,67 @@ def network(): #the netcode thread!
                 printer.msgs.append("[ERROR] Lost connection midgame!")
             break
         netpack = pack[0]
-        with PING_lock: #set our ping to its respective level
-            PING = pack[1]
-        Edata = netpack[0]
-        #now we need to parse it...uggh
-        for parse in range(0,len(Edata)):
-            with player_lock:
-                del(player.size[parse])
-                del(player.direction[parse])
-                del(player.pos[parse])
-        
-        Sdata = netpack[1] #Server-side square data needs to be recieved...
-
-        #now we decode it...and it turns into a list! (if all goes well, that is)
-        with Serversquares_lock:
-            for x in range(0,len(Sdata)):
-                while True:
-                    try: #due to the changing client list size...sometimes we need to add another player to the client list...
-                        Serversquares[x].set_stats(Sdata[x])
-                        break
-                    except IndexError: #we don't have enough players here...add another!
-                        Serversquares.append(Square())
-                        Serversquares[len(Serversquares) - 1].color = [255,0,0] #set the color to red
-
-        #Here we need to recieve data about changes in the Food list...
-        Fdata = netpack[2]
-        #use the Fdata list
-        for x in range(0,len(Fdata)):
-            if(Fdata[x][1] == 'eat'): #someone (or ourselves) ate something?
-                with food_lock:
-                    for f in range(0,len(food)):
-                        if(int(food[f].name) == Fdata[x][0]):
-                            del(food[f])
+        if(netpack != None): #we got the data successfully?
+            with PING_lock: #set our ping to its respective level
+                PING = pack[1]
+            Edata = netpack[0]
+            #now we need to parse it...uggh
+            for parse in range(0,len(Edata)):
+                with player_lock:
+                    del(player.size[parse])
+                    del(player.direction[parse])
+                    del(player.pos[parse])
+            
+            Sdata = netpack[1] #Server-side square data needs to be recieved...
+            #now we decode it...and it turns into a list! (if all goes well, that is)
+            with Serversquares_lock:
+                for x in range(0,len(Sdata)):
+                    while True:
+                        try: #due to the changing client list size...sometimes we need to add another player to the client list...
+                            Serversquares[x].set_stats(Sdata[x])
                             break
-            elif(Fdata[x][0] == "spawn"): #the server spawned more food?
-                with food_lock:
-                    food.append(Square()) #create a new food object
-                    food[len(food) - 1].set_stats(Fdata[x][1]) #load some stats into it
-                    food[len(food) - 1].color = [255,255,0]
-                    food[len(food) - 1].food = True
-                    food[len(food) - 1].textcolor = None
-        Fdata = []
+                        except IndexError: #we don't have enough players here...add another!
+                            Serversquares.append(Square())
+                            Serversquares[len(Serversquares) - 1].color = [255,0,0] #set the color to red
 
-        #here we need to recieve data about changes in our player's size...
-        Sdata = netpack[3]
-        for x in range(0,len(Sdata)): #use the data - format: [index,sizechange]
-            with player_lock:
-                try:
-                    player.size[Sdata[x][0]] += Sdata[x][1] #increment/decrement the sizechange coming from the server
-                except IndexError: #we rejoined our cells within the 30th of a second that it takes this data to come through?
+            #Here we need to recieve data in the Food list...
+            Fdata = netpack[2]
+            with food_lock:
+                del(food)
+                food = [] #here we clear the food list, and add the updated food to it.
+                for x in range(0,len(Fdata)):
+                    food.append(Square())
+                    food[len(food) - 1].set_stats(Fdata[x])
+                    food[len(food) - 1].color = [255,255,0] #set the food color to yellow
+                    food[len(food) - 1].food = True
+
+            #here we need to recieve data about changes in our player's size...
+            Sdata = netpack[3]
+            for x in range(0,len(Sdata)): #use the data - format: [index,sizechange]
+                with player_lock:
                     try:
-                        print("[WARNING] Couldn't find grow index.")
-                        player.size[0] += Sdata[x][1] #then just increment cell 0 of player's size
-                    except IndexError:
-                        print("[WARNING] Couldn't grow!!!")
+                        player.size[Sdata[x][0]] += Sdata[x][1] #increment/decrement the sizechange coming from the server
+                    except IndexError: #we rejoined our cells within the 30th of a second that it takes this data to come through?
+                        try:
+                            print("[WARNING] Couldn't find grow index.")
+                            player.size[0] += Sdata[x][1] #then just increment cell 0 of player's size
+                        except IndexError:
+                            print("[WARNING] Couldn't grow!!!")
+
+            with player_lock: #get server "sync" data
+                Sdata = netpack[4]
+                if(Sdata != None):
+                    player.set_stats(Sdata)
+
+            #get the stats of the lobby we're in (ingame/wait, timeleft)
+            with lobbystats_lock:
+                lobbystats = netpack[5]
                 
         with running_lock: #if we doesn't wants to be here anymore?
             if(running == False):
                 print("Server acknowledged closedown. Exiting...")
                 Cs.close() #close the connection
                 break #kill the thread
-
-        with player_lock: #get server "sync" data
-            Sdata = netpack[4]
-            if(Sdata != None):
-                player.set_stats(Sdata)
-
-        #get the stats of the lobby we're in (ingame/wait, timeleft)
-        with lobbystats_lock:
-            lobbystats = netpack[5]
 
         with player_lock: #send our player data
             Cdata = gather_data(player)

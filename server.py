@@ -170,13 +170,11 @@ FOOD_THRESHOLD = 35 #minimum food amount we can have onscreen before the server 
 
 #manage the client setups and food population
 food = [] #create some food
-food_ct = 0 #counter for food IDs
 food_lock = _thread.allocate_lock()
 for x in range(0,FOOD_MAX): #create 75 pieces of food
     food.append(Square([random.randint(0,640),random.randint(0,480)])) #randomly choose a position
     food[len(food) - 1].size = [random.randint(2,7)] #give us a little bit of size variation...
-    food[len(food) - 1].name = str(food_ct)
-    food_ct += 1
+    food[len(food) - 1].name = ""
 
 obj_and_food_lock = _thread.allocate_lock() #a lock for OBJ and Food [] at the same time
 
@@ -319,10 +317,7 @@ def manage_client(IP,PORT): #manages a single client connection
                                 foodeaten = obj[clientnum - 1].eat(food[x])
                                 if(foodeaten != False): #so they ate the food...now we have to update a million players food lists...
                                     obj[clientnum - 1].size[foodeaten[0]] += food[x].size[foodeaten[1]] #make sure we grow that hungry player
-                                    food_id = int(food[x].name) #the ID of the food piece eaten
                                     del(food[x]) #delete the eaten food
-                                    for b in range(0,len(obj)):
-                                        obj[b].food_diffs.append([food_id,'eat']) #tell everyone connected that "food_id" got eaten
                                     loopcontinue = True
                                     break #restart the calculations now that "food" is 1 index shorter than it should be
                         if(loopcontinue == True):
@@ -358,11 +353,11 @@ def manage_client(IP,PORT): #manages a single client connection
             gatheredobjs.append(eval(gather_data(objclone[getobjs])))
         netpack.append(gatheredobjs) #add all the square data to a list
         #now we send data about changes in the food list...
-        with obj_lock:
-            foodupdate = eval(str(obj[clientnum - 1].food_diffs))
-            netpack.append(foodupdate[:]) #add the food_diffs stuff to the netpack list
-            obj[clientnum - 1].food_diffs = [] #clear the food_diffs cache once its been sent
-            del(foodupdate)
+        with food_lock:
+            Fdata = []
+            for x in range(0,len(food)):
+                Fdata.append(eval(gather_data(food[x]))[:])
+        netpack.append(Fdata[:]) #add the food stuff to the netpack list
 
         if(Cgamephase == 'ingame'):
             with obj_lock: #make sure we shrink if we're getting too big!
@@ -413,7 +408,8 @@ def manage_client(IP,PORT): #manages a single client connection
 
         #now we need to decode the client's data...
         with obj_lock:
-            obj[clientnum - 1].set_stats(Cdata,clientnum) #*BOOM* - that was easy
+            if(Cdata != None): #if we managed to evaluate the data in Cdata successfully...
+                obj[clientnum - 1].set_stats(Cdata,clientnum) #*BOOM* - that was easy
 
         Sclock.tick() #try to get as many packet exchanges per second as we can
         
@@ -491,12 +487,11 @@ while True:
                         foodchanges = []
                         for x in range(0,FOOD_MAX - FOOD_THRESHOLD): #spawn some more!
                             food.append(Square([0,0])) #create a new piece of food
-                            food[len(food) - 1].name = str(food_ct)
+                            food[len(food) - 1].name = "" #give the food a blank name
                             spawnfood = True
                             food[len(food) - 1].pos = [[random.randint(0,640),random.randint(0,480)]] #give it a random position
                             food[len(food) - 1].size = [random.randint(2,7)] #give us a little bit of size variation...
                             foodchanges.append(["spawn", eval(gather_data(food[len(food) - 1]))]) #make sure we keep track of what we did so the clients know...
-                            food_ct += 1
                         for x in range(0,len(obj)): #let all the clients know!
                             for y in range(0,len(foodchanges)):
                                 obj[x].food_diffs.append(eval(str(foodchanges[y]))) #add the changes to the food_diffs inside each client OBJ...
