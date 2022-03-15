@@ -815,6 +815,9 @@ options_file = open("save/options.pkl","rb+")
 settings = pickle.load(options_file)[:]
 options_file.close()
 
+#use this to generate a settings file if you accidentally delete yours! Just re-comment out this line after shutting the game down the first time!
+#settings = [["True",0],["0.0.0.0",0],["5000",0],["default",0]]
+
 #load IP, PORT, and NAME variables
 IP = settings[1][0]
 PORT = settings[2][0]
