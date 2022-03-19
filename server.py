@@ -449,10 +449,11 @@ def eat_handler(): #checks if anyone ate anyone else, or if somebody ate food
                         if(obj[others].connected == False): #we're NOT checking collision for people who aren't there!
                             continue
                         playereaten = obj[players].eat(obj[others]) #did someone eat somebody else?
-                        obj[others].eaten.append(playereaten[1]) #now we gather the eaten data into a list
-                        obj[others].size.pop(playereaten[1]) #delete the eaten player's cell
-                        obj[others].direction.pop(playereaten[1])
-                        obj[others].pos.pop(playereaten[1])
+                        if(playereaten != False):
+                            obj[others].eaten.append(playereaten[1]) #now we gather the eaten data into a list
+                            obj[others].size.pop(playereaten[1]) #delete the eaten player's cell
+                            obj[others].direction.pop(playereaten[1])
+                            obj[others].pos.pop(playereaten[1])
         else: #we're not ingame currently:
             with obj_lock:
                 for x in range(0,len(obj)):

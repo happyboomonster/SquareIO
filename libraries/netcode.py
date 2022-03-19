@@ -15,8 +15,16 @@ def send_data(Cs,buffersize,data): #sends some data without checking if the data
 
 def recieve_data(Cs,buffersize,evaluate=False,returnping=False): #tries to recieve some data without checking its validity
     pingstart = time.time() #set a starting ping time
-    Nbuffersize = int(Cs.recv(buffersize).decode('utf-8')) #get our data's buffersize
-    data = Cs.recv(Nbuffersize).decode('utf-8') #recieve our data
+    Nbuffersize = Cs.recv(buffersize) #get our data's buffersize
+    try:
+        Nbuffersize = int(Nbuffersize.decode('utf-8'))
+    except:
+        data = None
+    try:
+        data = Cs.recv(Nbuffersize) #recieve our data
+        data = data.decode('utf-8')
+    except:
+        data = None
     ping = int(1000.0 * (time.time() - pingstart)) #calculate our ping
     if(evaluate):
         try:

@@ -554,11 +554,13 @@ def network(): #the netcode thread!
         #get data about whether we've been EATEN by someone?????!!!!!???
         try:
             pack = netcode.recieve_data(Cs,buffersize,evaluate=True,returnping=True) #get ALL the server data
-        except: #we lost connection?
+        except Exception as e: #we REALLY lost connection?
+            with print_lock:
+                print(e)
             with running_lock:
                 running = False
             with printer.msgs_lock:
-                printer.msgs.append("[ERROR] Lost connection midgame!")
+                printer.msgs.append("[ERROR] Server did not send data to client!")
             break
         netpack = pack[0]
         if(netpack == None): #the packet didn't make it through?
@@ -639,7 +641,7 @@ def network(): #the netcode thread!
             with running_lock:
                 running = False
             with printer.msgs_lock:
-                printer.msgs.append("[ERROR] Lost connection midgame!")
+                printer.msgs.append("[ERROR] Couldn't send client's data pack!")
             break
 
         if(loss_counter[0] + loss_counter[1] >= LOSS_UPDATE_TIME): #update our loss counter?
