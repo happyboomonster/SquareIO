@@ -200,7 +200,7 @@ def manage_client(IP,PORT): #manages a single client connection
     #create a socket connection to the client
     buffersize = 10 #default buffer size
     Cs, Caddress = s.accept() #connect to a client
-    Cs.settimeout(15) #set a timeout of (?) seconds for Cs
+    Cs.settimeout(10) #set a timeout of (?) seconds for Cs
     with printer.msgs_lock: #let the WORLD of terminal know...how exciting
         printer.msgs.append("[OK] Client at " + str(Caddress) + " connected successfully.")
 

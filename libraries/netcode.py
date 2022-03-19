@@ -13,17 +13,23 @@ def send_data(Cs,buffersize,data): #sends some data without checking if the data
     Cs.send(bytes(datalen,'utf-8')) #send the buffersize of our data
     Cs.send(bytes(data,'utf-8')) #send the actual data
 
+#***please note: For this to work, the client's socket timeout must be less than the server's!***
 def recieve_data(Cs,buffersize,evaluate=False,returnping=False): #tries to recieve some data without checking its validity
     pingstart = time.time() #set a starting ping time
     Nbuffersize = Cs.recv(buffersize) #get our data's buffersize
     try:
         Nbuffersize = int(Nbuffersize.decode('utf-8'))
+        try:
+            data = Cs.recv(Nbuffersize) #recieve our data
+            data = data.decode('utf-8')
+        except:
+            data = None
     except:
-        data = None
-    try:
-        data = Cs.recv(Nbuffersize) #recieve our data
-        data = data.decode('utf-8')
-    except:
+        while True: #try to empty the Cs buffer of data so we can get back into sync next packet
+            try:
+                Cs.recv(buffersize)
+            except: #this exception should only occur once we empty the buffer of data we were sent.
+                break #Which will in turn exit this loop, and we should be back into sync with the server!
         data = None
     ping = int(1000.0 * (time.time() - pingstart)) #calculate our ping
     if(evaluate):
