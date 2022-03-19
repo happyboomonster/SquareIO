@@ -661,7 +661,7 @@ def network(): #the netcode thread!
         except ZeroDivisionError: #we're getting PERFECT packets every time???
             pass #do nothing, we're fine!
 
-        Nclock.tick() #tick the clock so we can see our PPS
+        Nclock.tick(100) #tick the clock so we can see our PPS (100 is limit so we don't end up with an infinity value)
 
         #and set our PPS so we can see our swwwwwweeet performance stats
         with PPS_lock:
