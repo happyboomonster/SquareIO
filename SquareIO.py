@@ -647,19 +647,18 @@ def network(): #the netcode thread!
         if(loss_counter[0] + loss_counter[1] >= LOSS_UPDATE_TIME): #update our loss counter?
             with LOSS_lock:
                 try: #get a percentage based packet loss
-                    LOSS = 100.00 - ((loss_counter[0] + loss_counter[1]) * 100.0 / loss_counter[0])
+                    LOSS = 100.00 - ((loss_counter[0] + loss_counter[1]) / loss_counter[0] * 100.0)
                 except ZeroDivisionError: #we have perfect packets?
-                    LOSS = 0.00 #we got 100% packets, YESSSS indeed!
+                    LOSS = 100.00 #we lost 100% packets, oh no!
             loss_counter = [0,0]
 
-        try:
-            if((loss_counter[0] + loss_counter[1]) * 100.0 / loss_counter[0] < 15): #we're losing every packet but 15%???
-                with running_lock:
-                    running = False
-                with printer.msgs_lock:
-                    printer.msgs.append("[ERROR] Disconnected due to EXTREME packet loss!")
-        except ZeroDivisionError: #we're getting PERFECT packets every time???
-            pass #do nothing, we're fine!
+        with LOSS_lock:
+            tmp_LOSS = LOSS
+        if(tmp_LOSS > 85): #we're losing every packet but 15%???
+            with running_lock:
+                running = False
+            with printer.msgs_lock:
+                printer.msgs.append("[ERROR] Disconnected due to EXTREME packet loss!")
 
         Nclock.tick(100) #tick the clock so we can see our PPS (100 is limit so we don't end up with an infinity value)
 
