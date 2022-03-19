@@ -146,7 +146,7 @@ class Square():
         self.score = 0
         self.direction = [[0.0, 0.0, 1.0]]
 
-        self.boostfactor = 0.3 #the acceleration multiplier that a cell gets upon splitting
+        self.boostfactor = 0.5 #the acceleration multiplier that a cell gets upon splitting
         self.slowdown = 0.001 #the slowdown factor for usage after a cell splits (smaller = longer boost time)
 
         self.color = [0,255,0] #color of player
@@ -157,8 +157,7 @@ class Square():
         self.name = "default"
 
         #speed limits
-        self.speedT = 2.0 #pixels per tick
-        self.speedS = self.speedT * 30 #pixels per second
+        self.speedS = 60 #pixels per second
         self.slowdown = 0.5 #slowdown factor - bigger = slower
 
     def draw_square(self): #draws the player onscreen with his pos as the center point of his player
@@ -273,8 +272,8 @@ CPS = 1 #Compute cycles Per Second (Compute thread)
 CPS_lock = _thread.allocate_lock()
 FPS = 1 #Frames Per Second (Renderer thread)
 FPS_lock = _thread.allocate_lock()
-TPS = 1 #Ticks Per Second (Networking thread) - need to change this to PPS (Packets Per Second) next update!
-TPS_lock = _thread.allocate_lock()
+PPS = 1 #Ticks Per Second (Networking thread) - need to change this to PPS (Packets Per Second) next update!
+PPS_lock = _thread.allocate_lock()
 PING = 1 #ping time (ms)
 PING_lock = _thread.allocate_lock()
 LOSS = 0.0 #percentage of packets lost through transmission
@@ -297,7 +296,7 @@ in_menu_lock = _thread.allocate_lock()
 def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (perhaps the most computationally heavy part of the game)
     global player
     global FPS
-    global TPS
+    global PPS
     global CPS
     global PING
     global lobbystats
@@ -402,7 +401,7 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
                 pass #just ignore it...
 
         #draw our performance/lobby stats
-        draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " TPS: " + justify(str(performance[2]),3) + " PING - " + justify(str(performance[3]),4) + " PACK. LOSS - " + justify(str(performance[4]),6),[1,1],[255,0,0],0.5)
+        draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " PPS: " + justify(str(performance[2]),3) + " PING - " + justify(str(performance[3]),4) + " PACK. LOSS - " + justify(str(performance[4]),6),[1,1],[255,0,0],0.5)
         with lobbystats_lock:
             draw_words("Lobby status - " + justify(lobbystats[0],6) + " Time - " + justify(str(int(lobbystats[1])),3),[1,470],[255,0,0],0.5)
 
@@ -467,8 +466,8 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
             performance[0] = FPS
         with CPS_lock:
             performance[1] = CPS
-        with TPS_lock:
-            performance[2] = TPS
+        with PPS_lock:
+            performance[2] = PPS
         with PING_lock:
             performance[3] = PING
         with LOSS_lock:
@@ -502,9 +501,9 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
             with player_lock:
                 player.rejoin() #check if we can rejoin any of our player's cells, and if so, do that.
                 for x in range(0,len(player.direction)):
-                    TMPspeed = ((player.speedS - (player.size[x] * player.slowdown)) / tmpCPS) * player.direction[x][2]
-                    if(TMPspeed < (5 / tmpCPS)): #if we're not moving??? or backwards???
-                        TMPspeed = (5.0 / tmpCPS) #let's be nice, let people move 5 pixels per second then...
+                    TMPspeed = (player.speedS - (player.size[x] * player.slowdown)) * player.direction[x][2]
+                    if(TMPspeed < 0): #if we're not moving??? or backwards???
+                        TMPspeed = 20 #let's fix that, make them move at least not backwards.
                     if(player.pos[x][0] < cursorpos[0] + 5 and player.pos[x][0] > cursorpos[0] - 5): #to avoid jumpy standstill on players, if our mouse is centered on our cell, don't move it.
                         if(player.pos[x][1] < cursorpos[1] + 5 and player.pos[x][1] > cursorpos[1] - 5):
                             player.direction[x] = [0.0,0.0,1.0]
@@ -518,14 +517,14 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
                         player.direction[x][1] = TMPplayerdirection[1]
                     if(player.direction[x][2] > 1): #decrease the player's boost amount each CPS
                         player.direction[x][2] -= (player.slowdown * player.size[x]) / tmpCPS
-                    player.pos[x][0] += player.direction[x][0]
-                    player.pos[x][1] += player.direction[x][1]
+                    player.pos[x][0] += player.direction[x][0] / tmpCPS * 1.0
+                    player.pos[x][1] += player.direction[x][1] / tmpCPS * 1.0
 
-        with Serversquares_lock: #update ALL the other players positions
+        with Serversquares_lock: #update ALL the other players' positions
             for computesquares in range(0,len(Serversquares)):
                 for x in range(0,len(Serversquares[computesquares].pos)):
-                    Serversquares[computesquares].pos[x][0] += Serversquares[computesquares].direction[x][0]
-                    Serversquares[computesquares].pos[x][1] += Serversquares[computesquares].direction[x][1]
+                    Serversquares[computesquares].pos[x][0] += Serversquares[computesquares].direction[x][0] / tmpCPS * 1.0
+                    Serversquares[computesquares].pos[x][1] += Serversquares[computesquares].direction[x][1] / tmpCPS * 1.0
 
         Cclock.tick(900) #run AS FAST AS WE CAN!!! (almost)
 
@@ -535,7 +534,7 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
                 CPS = pCPS
 
 def network(): #the netcode thread!
-    global TPS
+    global PPS
     global PING
     global LOSS
     global Cs
@@ -546,7 +545,7 @@ def network(): #the netcode thread!
     global running
     global food
 
-    Nclock = pygame.time.Clock() #a pygame clock for PPS/TPS (currently tied together)
+    Nclock = pygame.time.Clock() #a pygame clock for PPS
 
     loss_counter = [0,0] #a list of the packets which did and didn't make it through to us...[successful, lost]
     LOSS_UPDATE_TIME = 30 #every LOSS_UPDATE_TIME packets our loss counter gets updated to the LOSS variable
@@ -566,16 +565,20 @@ def network(): #the netcode thread!
             loss_counter[1] += 1 #add a failure signal to our packet loss counter
         else: #we got the data successfully?
             loss_counter[0] += 1 #add a success signal to our packet loss counter
+            
             with PING_lock: #set our ping to its respective level
                 PING = pack[1]
-            Edata = netpack[0]
+
             #now we need to parse it...uggh
+            Edata = netpack[0] #we start by checking if the server thinks we got eaten...
             for parse in range(0,len(Edata)):
+                with printer.msgs_lock:
+                    printer.msgs.append(str(parse))
                 with player_lock:
                     del(player.size[parse])
                     del(player.direction[parse])
                     del(player.pos[parse])
-            
+                        
             Sdata = netpack[1] #Server-side square data needs to be recieved...
             #now we decode it...and it turns into a list! (if all goes well, that is)
             with Serversquares_lock:
@@ -656,11 +659,11 @@ def network(): #the netcode thread!
         except ZeroDivisionError: #we're getting PERFECT packets every time???
             pass #do nothing, we're fine!
 
-        Nclock.tick() #tick the clock so we can see our TPS/PPS (currently TPS is locked to PPS)
+        Nclock.tick() #tick the clock so we can see our PPS
 
-        #and set our TPS so we can see our swwwwwweeet performance stats
-        with TPS_lock:
-            TPS = justify(str(int(round(Nclock.get_fps(),0))), 3)
+        #and set our PPS so we can see our swwwwwweeet performance stats
+        with PPS_lock:
+            PPS = justify(str(int(round(Nclock.get_fps(),0))), 3)
 
 def start_game(name,port,ip,stretch):
     global running
