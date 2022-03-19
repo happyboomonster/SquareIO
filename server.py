@@ -322,7 +322,7 @@ def manage_client(IP,PORT): #manages a single client connection
             eatenprint = obj[clientnum - 1].eaten[:]
         with printer.msgs_lock:
             if(eatenprint != []):
-                printer.msgs.append(str(eatenprint))
+                printer.msgs.append("[INFO] A player ate index " + str(eatenprint) + " of another player.")
         with obj_lock: #check some external variables if we've been eaten?
             netpack.append(obj[clientnum - 1].eaten[:]) #add "selfeaten" to netpack list
             obj[clientnum - 1].eaten = [] #clear the player's "eaten" cache
@@ -452,6 +452,8 @@ def eat_handler(): #checks if anyone ate anyone else, or if somebody ate food
                             continue
                         playereaten = obj[players].eat(obj[others]) #did someone eat somebody else?
                         if(playereaten != False):
+                            with printer.msgs_lock:
+                                printer.msgs.append("[INFO] A player cell of this specifics was eaten: Size: " + str(obj[others].size) + " Position: " +  str(obj[others].pos) + " Direction: " + str(obj[others].direction))
                             obj[others].eaten.append(playereaten[1]) #now we gather the eaten data into a list
                             obj[others].size.pop(playereaten[1]) #delete the eaten player's cell
                             obj[others].direction.pop(playereaten[1])

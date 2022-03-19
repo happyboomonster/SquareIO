@@ -648,6 +648,8 @@ def network(): #the netcode thread!
             with LOSS_lock:
                 try: #get a percentage based packet loss
                     LOSS = 100.00 - ((loss_counter[0] + loss_counter[1]) / loss_counter[0] * 100.0)
+                    if(LOSS < 0): #just make sure our packet loss counte doesn't go negative...
+                        LOSS = LOSS * -1
                 except ZeroDivisionError: #we have perfect packets?
                     LOSS = 100.00 #we lost 100% packets, oh no!
             loss_counter = [0,0]
