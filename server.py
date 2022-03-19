@@ -230,7 +230,7 @@ def manage_client(IP,PORT): #manages a single client connection
                 for x in range(0,len(obj)):
                     if(obj[x].connected == False):
                         clientnum = x + 1 #give us a client number
-                        obj[clientnum - 1].connected = True
+                        obj[clientnum - 1].connected = False #we don't want other people to be able to eat us quite yet...
                         obj[clientnum - 1].pos = [[random.randint(0,640),random.randint(0,480)]]
                         obj[clientnum - 1].direction = [[0.0, 0.0, 1.0]]
                         with consts_lock:
@@ -308,6 +308,8 @@ def manage_client(IP,PORT): #manages a single client connection
             printer.msgs.append("    [OK] Successfully joined server!")
         with client_connected_lock: #make sure the server thread knows that we got a client on us!
             client_connected = True
+        with obj_lock: #NOW other players can eat us...
+            obj[clientnum - 1].connected = True
 
     with game_phase_lock:
         Cgamephase = game_phase

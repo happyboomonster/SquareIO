@@ -548,7 +548,7 @@ def network(): #the netcode thread!
     Nclock = pygame.time.Clock() #a pygame clock for PPS
 
     loss_counter = [0,0] #a list of the packets which did and didn't make it through to us...[successful, lost]
-    LOSS_UPDATE_TIME = 30 #every LOSS_UPDATE_TIME packets our loss counter gets updated to the LOSS variable
+    LOSS_UPDATE_TIME = 10 #every LOSS_UPDATE_TIME packets our loss counter gets updated to the LOSS variable
 
     while True: #main netcode loop
         #get data about whether we've been EATEN by someone?????!!!!!???
