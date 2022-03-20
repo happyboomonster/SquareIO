@@ -13,7 +13,7 @@ def send_data(Cs,buffersize,data): #sends some data without checking if the data
     Cs.send(bytes(datalen + data,'utf-8')) #send the buffersize of our data followed by the data itself
 
 #***please note: For this to work, the client's socket timeout must be less than the server's!***
-def recieve_data(Cs,buffersize,evaluate=False,returnping=False): #tries to recieve some data without checking its validity
+def recieve_data(Cs,buffersize,evaluate=False,returnping=False,timeout=20): #tries to recieve some data without checking its validity
     pingstart = time.time() #set a starting ping time
     Nbuffersize = Cs.recv(buffersize) #get our data's buffersize
     try:
@@ -24,12 +24,14 @@ def recieve_data(Cs,buffersize,evaluate=False,returnping=False): #tries to recie
         except:
             data = None
     except:
+        Cs.settimeout(0.25) #we need to temporarily set this to a low value so we can rejoin the game quickly.
         while True: #try to empty the Cs buffer of data so we can get back into sync next packet
             try:
                 Cs.recv(buffersize)
             except: #this exception should only occur once we empty the buffer of data we were sent.
                 break #Which will in turn exit this loop, and we should be back into sync with the server!
         data = None
+        Cs.settimeout(timeout) #reset the packet timeout to its normal state
     ping = int(1000.0 * (time.time() - pingstart)) #calculate our ping
     if(evaluate):
         try:
