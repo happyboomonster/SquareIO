@@ -109,6 +109,7 @@ class Square(): #the square/player class
         self.clientnum = None #use this to make sure we're not sending this object back to where we got it from...
         self.food_diffs = [] #list which is used to transmit changes to the food list rather than re-transmitting the food list each frame
         self.size_diffs = [] #list which is used to transmit size changes to the player
+        self.respawn = True #value is in seconds; basically gives a player a few seconds of invincability after respawning.
 
         self.eaten = [] #list which holds the eaten cells of this player (ik, kinda wierd ngl)
 
@@ -130,8 +131,11 @@ class Square(): #the square/player class
     def shrink(self,TPS):
         for x in range(0,len(self.size)):
             if(self.size[x] > 20):
-                self.size_diffs.append([x,-(self.shrinkfactor * self.size[x]) / TPS])
-                self.size[x] -= (self.shrinkfactor * self.size[x]) / TPS
+                try:
+                    self.size_diffs.append([x,-(self.shrinkfactor * self.size[x]) / TPS])
+                    self.size[x] -= (self.shrinkfactor * self.size[x]) / TPS
+                except ZeroDivisionError: #if our TPS is 0, just don't shrink them this time...
+                    pass
 
     def eat(self,other): #checks whether this Square() instance is completely surrounding another. if so, the other one's DEAD.
         selfposition = [] #list format: [[x1,y1,x2,y2], [x1,y1,x2,y2]]
@@ -190,6 +194,9 @@ def manage_client(IP,PORT): #manages a single client connection
     global timeleft
     #a constant which defines our goal Packets Per Second
     GOAL_PPS = 10
+
+    #whether we need the client to respawn
+    RESPAWN = False
     
     #we are still going ahead with this, aren't we?
     running = True
@@ -310,6 +317,7 @@ def manage_client(IP,PORT): #manages a single client connection
             client_connected = True
         with obj_lock: #NOW other players can eat us...
             obj[clientnum - 1].connected = True
+            obj[clientnum - 1].respawn = False
 
     with game_phase_lock:
         Cgamephase = game_phase
@@ -351,20 +359,20 @@ def manage_client(IP,PORT): #manages a single client connection
         with obj_lock: #now we send changes about the client's size data...
             sizeupdate = eval(str(obj[clientnum - 1].size_diffs))
             netpack.append(sizeupdate) #add our size update to netpack
-            #netcode.send_data(Cs,buffersize,sizeupdate)
             obj[clientnum - 1].size_diffs = [] #clear the size_diffs cache once its been sent
 
         #we have what I like to call a "Sync" session here...if the server wants to set you somewhere else, you're going there!
         Sdata = None
         with game_phase_lock:
             if(Cgamephase == 'wait' and game_phase == 'ingame'):
-                Sdata = True #set a flag which lets us know that we needs to reset this player to [SIZE], speed 0
+                RESPAWN = True #set a flag which lets us know that we needs to reset this player to [SIZE], speed 1
             Cgamephase = game_phase #sync our local Client-thread gamephase variable with the one in the lobbyhandler thread AFTER checking if a new round started
         with obj_lock:
             if(len(obj[clientnum - 1].pos) == 0): #we got eaten???
-                Sdata = True
+                RESPAWN = True
         with obj_lock:
-            if(Sdata == True):
+            if(RESPAWN == True):
+                obj[clientnum - 1].respawn = True #A player can't be eaten until this flag goes false.
                 obj[clientnum - 1].size = [SIZE]
                 obj[clientnum - 1].pos = [[random.randint(0,640),random.randint(0,480)]]
                 obj[clientnum - 1].direction = [[0.0,0.0,1.0]]
@@ -395,7 +403,15 @@ def manage_client(IP,PORT): #manages a single client connection
         #now we need to decode the client's data...
         with obj_lock:
             if(Cdata != None): #if we managed to evaluate the data in Cdata successfully...
-                obj[clientnum - 1].set_stats(Cdata,clientnum) #*BOOM* - that was easy
+                if(RESPAWN == True): #we need to make sure the client respawned properly
+                    if(Cdata == Sdata): #if the player DID respawn like we asked them...
+                        obj[clientnum - 1].set_stats(Cdata,clientnum) #set the client's stats to our server
+                        RESPAWN = False
+                        obj[clientnum - 1].respawn = False
+                    else: #the player dropped the respawn packet OR they're cheating?
+                        RESPAWN = True
+                else:
+                    obj[clientnum - 1].set_stats(Cdata,clientnum) #*BOOM* - that was easy
 
         packet_ct += 1 #increase how many packets we've sent so far...
 
@@ -409,7 +425,7 @@ def manage_client(IP,PORT): #manages a single client connection
     with printer.msgs_lock:
         printer.msgs.append("[DISCONNECT, " + str(clientnum) + "] Client has disconnected from server.")
 
-def eat_handler(): #checks if anyone ate anyone else, or if somebody ate food
+def player_handler(): #checks if anyone ate anyone else, or if somebody ate food
     global food
     global obj
     global running
@@ -435,6 +451,8 @@ def eat_handler(): #checks if anyone ate anyone else, or if somebody ate food
                 with food_lock:
                     for objects in range(0,len(obj)):
                         for x in range(0,len(food)):
+                            if(obj[objects].respawn == True): #we're not going to let newly respawned players to eat.
+                                continue
                             foodeaten = obj[objects].eat(food[x])
                             if(foodeaten != False): #so they ate the food...now we have to update a million players food lists...
                                 obj[objects].size[foodeaten[0]] += food[x].size[foodeaten[1]] #make sure we grow that hungry player
@@ -445,19 +463,24 @@ def eat_handler(): #checks if anyone ate anyone else, or if somebody ate food
                 for players in range(0,len(obj)):
                     if(obj[players].connected == False): #we're NOT checking collision for people who aren't there!
                         continue
+                    elif(obj[players].respawn == True): #we're not letting newly respawned players get eaten, or eat!
+                        continue
                     for others in range(0,len(obj)):
                         if(players == others): #we're NOT going to try eat ourselves...
                             continue
-                        if(obj[others].connected == False): #we're NOT checking collision for people who aren't there!
+                        elif(obj[others].connected == False): #we're NOT checking collision for people who aren't there!
+                            continue
+                        elif(obj[others].respawn == True): #we're not letting newly respawned players get eaten, or eat!
                             continue
                         playereaten = obj[players].eat(obj[others]) #did someone eat somebody else?
                         if(playereaten != False):
                             with printer.msgs_lock:
-                                printer.msgs.append("[INFO] A player cell of this specifics was eaten: Size: " + str(obj[others].size) + " Position: " +  str(obj[others].pos) + " Direction: " + str(obj[others].direction))
+                                printer.msgs.append("[INFO] [" + str(players) + "] ate [" + str(others) + "] at cell: Playereaten: " + str(playereaten) + " Size: " + str(obj[others].size) + " Position: " +  str(obj[others].pos) + " Direction: " + str(obj[others].direction))
                             obj[others].eaten.append(playereaten[1]) #now we gather the eaten data into a list
                             obj[others].size.pop(playereaten[1]) #delete the eaten player's cell
                             obj[others].direction.pop(playereaten[1])
                             obj[others].pos.pop(playereaten[1])
+                            continue #move on to the next player since this one already ate someone this tick
         else: #we're not ingame currently:
             with obj_lock:
                 for x in range(0,len(obj)):
@@ -523,7 +546,7 @@ def round_handler(): #governs the timing of when waiting for players happens, an
 
 clock = pygame.time.Clock()
 _thread.start_new_thread(round_handler,()) #keep track of our round times
-_thread.start_new_thread(eat_handler,()) #track anyone eating anyone else...
+_thread.start_new_thread(player_handler,()) #track anyone eating anyone else...
 while True:
     with clients_lock:
         old_clientct = clients #this is how many clients we *had*...

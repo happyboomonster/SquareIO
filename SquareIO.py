@@ -170,13 +170,16 @@ class Square():
         totalmass = 0 #get a sum of all our mass
         for x in range(0,len(self.size)):
             totalmass += self.size[x]
-        if(totalmass / len(self.size) > 10): #make sure we can't split ourselves beyond a certain size (10px)
-            splitmass = totalmass / (len(self.size) + 1) #get an idea of how much mass we're going to take into the new split...
-            for x in range(0,len(self.size)):
-                self.size[x] -= splitmass / len(self.size) #take away a bit of mass from all player's other cells to create a new cell
-            self.direction.append([0.0,0.0,self.boostfactor * self.size[0]]) #make new direction vector for new instance of Square with a 5x speedup
-            self.size.append(splitmass) #add the new mass size to our newest addition
-            self.pos.append([self.pos[0][0], self.pos[0][1]]) #make a new pos for the duplicate
+        try:
+            if(totalmass / len(self.size) > 10): #make sure we can't split ourselves beyond a certain size (10px)
+                splitmass = totalmass / (len(self.size) + 1) #get an idea of how much mass we're going to take into the new split...
+                for x in range(0,len(self.size)):
+                    self.size[x] -= splitmass / len(self.size) #take away a bit of mass from all player's other cells to create a new cell
+                self.direction.append([0.0,0.0,self.boostfactor * self.size[0]]) #make new direction vector for new instance of Square with a 5x speedup
+                self.size.append(splitmass) #add the new mass size to our newest addition
+                self.pos.append([self.pos[0][0], self.pos[0][1]]) #make a new pos for the duplicate
+        except ZeroDivisionError:
+            pass #don't split if we're not existent!
 
     def rejoin(self): #checks if any cells of this Square() object are touching; if so, it adds their mass to join them
         while True:
@@ -266,6 +269,10 @@ printer = Printer()
 
 #create a menu object
 Mhandler = menu.Menuhandler()
+
+#this flag goes positive when a player needs to respawn. The server keeps resetting the player's position until he respawns.
+RESPAWN = False
+RESPAWN_lock = _thread.allocate_lock()
 
 #stats variables
 CPS = 1 #Compute cycles Per Second (Compute thread)
@@ -481,6 +488,7 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
     global mousepos
     global in_menu
     global player_lock
+    global RESPAWN
 
     #local variables, no threading needed
     mousepos = [0,0] #a local function variable which we DON'T need to lock at ALL.
@@ -497,7 +505,9 @@ def compute(): #the computation thread of SquareIO; handling movement, mostly at
             cursorpos = mousepos[:]
         with in_menu_lock:
             tmp_menu_flag = in_menu
-        if(tmp_menu_flag != True): #make sure we're not moving while we're in a menu
+        with RESPAWN_lock:
+            tmp_RESPAWN = RESPAWN
+        if(tmp_menu_flag != True and tmp_RESPAWN == False): #make sure we're not moving while we're in a menu or respawning
             with player_lock:
                 player.rejoin() #check if we can rejoin any of our player's cells, and if so, do that.
                 for x in range(0,len(player.direction)):
@@ -544,6 +554,7 @@ def network(): #the netcode thread!
     global lobbystats
     global running
     global food
+    global RESPAWN
 
     Nclock = pygame.time.Clock() #a pygame clock for PPS
 
@@ -572,14 +583,17 @@ def network(): #the netcode thread!
                 PING = pack[1]
 
             #now we need to parse it...uggh
-            Edata = netpack[0] #we start by checking if the server thinks we got eaten...
-            for parse in range(0,len(Edata)):
-                with printer.msgs_lock:
-                    printer.msgs.append(str(parse))
-                with player_lock:
-                    del(player.size[parse])
-                    del(player.direction[parse])
-                    del(player.pos[parse])
+            with RESPAWN_lock: #get a temporary copy of the respawn variable
+                tmp_RESPAWN = RESPAWN
+            if(tmp_RESPAWN == False): #we're not respawning?
+                Edata = netpack[0] #we start by checking if the server thinks we got eaten...
+                for parse in range(0,len(Edata)):
+                    with printer.msgs_lock:
+                        printer.msgs.append(str(parse))
+                    with player_lock:
+                        del(player.size[parse])
+                        del(player.direction[parse])
+                        del(player.pos[parse])
                         
             Sdata = netpack[1] #Server-side square data needs to be recieved...
             #now we decode it...and it turns into a list! (if all goes well, that is)
@@ -606,22 +620,29 @@ def network(): #the netcode thread!
                         food[len(food) - 1].food = True
 
             #here we need to recieve data about changes in our player's size...
-            Sdata = netpack[3]
-            for x in range(0,len(Sdata)): #use the data - format: [index,sizechange]
-                with player_lock:
-                    try:
-                        player.size[Sdata[x][0]] += Sdata[x][1] #increment/decrement the sizechange coming from the server
-                    except IndexError: #we rejoined our cells within the 30th of a second that it takes this data to come through?
+            if(tmp_RESPAWN == False): #we're not respawning rn?
+                Sdata = netpack[3]
+                for x in range(0,len(Sdata)): #use the data - format: [index,sizechange]
+                    with player_lock:
                         try:
-                            print("[WARNING] Couldn't find grow index.")
-                            player.size[0] += Sdata[x][1] #then just increment cell 0 of player's size
-                        except IndexError:
-                            print("[WARNING] Couldn't grow!!!")
+                            player.size[Sdata[x][0]] += Sdata[x][1] #increment/decrement the sizechange coming from the server
+                        except IndexError: #we rejoined our cells within the 30th of a second that it takes this data to come through?
+                            try:
+                                print("[WARNING] Couldn't find grow index.")
+                                player.size[0] += Sdata[x][1] #then just increment cell 0 of player's size
+                            except IndexError:
+                                print("[WARNING] Couldn't grow!!!")
 
             with player_lock: #get server "sync" data
                 Sdata = netpack[4]
                 if(Sdata != None):
                     player.set_stats(Sdata)
+            if(Sdata != None): #set the RESPAWN flag high if we're syncing
+                with RESPAWN_lock:
+                    RESPAWN = True
+            else: #reset our RESPAWN flag if the server decides we're doin' OK.
+                with RESPAWN_lock:
+                    RESPAWN = False
 
             #get the stats of the lobby we're in (ingame/wait, timeleft)
             with lobbystats_lock:
