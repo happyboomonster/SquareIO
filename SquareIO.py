@@ -741,7 +741,7 @@ def start_game(name,port,ip,stretch):
         try:
             buffersize = Cs.recv(buffersize)
         except:
-            print("    [ERROR] Couldn't even grab the starting buffersize!")
+            print("    [ERROR] Couldn't even grab the starting buffersize! Recieved: " + str(buffersize.decode('utf-8')))
             connection = False
     if(connection):
         buffersize = int(buffersize.decode("utf-8"))
@@ -758,7 +758,7 @@ def start_game(name,port,ip,stretch):
         try:
             Cdata = netcode.recieve_data_noerror(Cs,buffersize)
         except:
-            print("    [ERROR] Connection Lost!!!!")
+            print("    [ERROR] Connection Lost!!!! Data recieved: " + str(Cdata.decode('utf-8')))
             connection = False
     if(connection):
         player.set_stats(eval(Cdata))
@@ -788,6 +788,7 @@ def start_game(name,port,ip,stretch):
         Cs.send(bytes("          ",'utf-8')) #send an empty 10 byte confirm signal
         try:
             for getfood in range(0,Foodlen):
+                print("Attempting to grab piece " + str(getfood) + " of food right now...")
                 tmpfood = netcode.recieve_data_noerror(Cs,buffersize,evaluate=True)
                 Fdata.append(tmpfood[:])
         except:
@@ -806,10 +807,11 @@ def start_game(name,port,ip,stretch):
     if(connection):
         print("[INFO] Recieving client number...")
         try:
-            clientnum = int(Cs.recv(buffersize).decode('utf-8'))
+            clientnum = Cs.recv(buffersize).decode('utf-8')
+            clientnum = int(clientnum)
             Cs.send(bytes("          ",'utf-8')) #send an acknowledge signal
         except:
-            print("    [ERROR] Failed to get our client number! (sad =( ).")
+            print("    [ERROR] Failed to get our client number! Data recieved: " + str(clientnum))
             connection = False
     if(connection):
         print("    [OK] Recieved client number " + str(clientnum))
