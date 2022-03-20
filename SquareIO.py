@@ -741,7 +741,7 @@ def start_game(name,port,ip,stretch):
         try:
             buffersize = Cs.recv(buffersize)
         except:
-            print("    [ERROR] Couldn't even grab the starting buffersize! Recieved: " + str(buffersize.decode('utf-8')))
+            print("    [ERROR] Couldn't even grab the starting buffersize! Recieved: " + str(buffersize))
             connection = False
     if(connection):
         buffersize = int(buffersize.decode("utf-8"))
@@ -758,7 +758,7 @@ def start_game(name,port,ip,stretch):
         try:
             Cdata = netcode.recieve_data_noerror(Cs,buffersize)
         except:
-            print("    [ERROR] Connection Lost!!!! Data recieved: " + str(Cdata.decode('utf-8')))
+            print("    [ERROR] Connection Lost!!!! Data recieved: " + str(Cdata))
             connection = False
     if(connection):
         player.set_stats(eval(Cdata))
@@ -792,7 +792,7 @@ def start_game(name,port,ip,stretch):
                 tmpfood = netcode.recieve_data_noerror(Cs,buffersize,evaluate=True)
                 Fdata.append(tmpfood[:])
         except:
-            print("    [ERROR] Failed to recieve food positions!")
+            print("    [ERROR] Failed to recieve food positions! Data: " + str(tmpfood))
             connection = False
     if(connection):
         for x in range(0,len(Fdata)): #load it into our Food array
