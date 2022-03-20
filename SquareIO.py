@@ -734,10 +734,6 @@ def start_game(name,port,ip,stretch):
     if(connection):
         print("[OK] Connected to server!")
         Cs.settimeout(20) #(?) second timeout limit
-##        try: #empty out the recieve buffer
-##            Cs.recv(8)
-##        except: #once we get a timeout error, continue.
-##            pass
     if(connection):
         print("[OK] Connection established with server " + ipaddr) #debug info
 
@@ -792,10 +788,8 @@ def start_game(name,port,ip,stretch):
         Foodlen = int(Cs.recv(buffersize).decode('utf-8')) #get the length of the food list
         Cs.send(bytes("          ",'utf-8')) #send an empty 10 byte confirm signal
         try:
-            for getfood in range(0,Foodlen):
-                print("Attempting to grab piece " + str(getfood) + " of food right now...")
-                tmpfood = netcode.recieve_data_noerror(Cs,buffersize,evaluate=True)
-                Fdata.append(tmpfood[:])
+            tmpfood = netcode.recieve_data_noerror(Cs,buffersize,evaluate=True)
+            Fdata = eval(str(tmpfood))
         except:
             print("    [ERROR] Failed to recieve food positions! Data: " + str(tmpfood))
             connection = False
