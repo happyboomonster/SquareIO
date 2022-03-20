@@ -591,9 +591,15 @@ def network(): #the netcode thread!
                     with printer.msgs_lock:
                         printer.msgs.append(str(parse))
                     with player_lock:
-                        del(player.size[parse])
-                        del(player.direction[parse])
-                        del(player.pos[parse])
+                        try:
+                            del(player.size[parse])
+                            del(player.direction[parse])
+                            del(player.pos[parse])
+                        except:
+                            if(len(player.size) > 0):
+                                del(player.size[0])
+                                del(player.direction[0])
+                                del(player.pos[0])
                         
             Sdata = netpack[1] #Server-side square data needs to be recieved...
             #now we decode it...and it turns into a list! (if all goes well, that is)
