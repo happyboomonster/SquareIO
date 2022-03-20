@@ -727,7 +727,7 @@ def start_game(name,port,ip,stretch):
         connection = False
     if(connection):
         print("[OK] Connected to server!")
-        Cs.settimeout(2) #(?) second timeout limit
+        Cs.settimeout(20) #(?) second timeout limit
 ##        try: #empty out the recieve buffer
 ##            Cs.recv(8)
 ##        except: #once we get a timeout error, continue.
