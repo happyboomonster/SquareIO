@@ -727,12 +727,12 @@ def start_game(name,port,ip,stretch):
         connection = False
     if(connection):
         print("[OK] Connected to server!")
-        Cs.settimeout(2) #(?) second timeout limit
-        try:
-            Cs.recv(8)
-        except:
-            print("   [ERROR] Server didn't give connection acknowledge")
-            connection = False
+        Cs.settimeout(1) #(?) second timeout limit
+        try: #empty out the recieve buffer
+            while True:
+                Cs.recv(8)
+        except: #once we get a timeout error, continue.
+            pass
     if(connection):
         print("[OK] Connection established with server " + ipaddr) #debug info
 

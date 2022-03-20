@@ -10,8 +10,7 @@ def justify(string,size): #a function which right justifies a string
 def send_data(Cs,buffersize,data): #sends some data without checking if the data made it through the wires
     datalen = justify(str(len(list(str(data)))),buffersize)
     data = str(data)
-    Cs.send(bytes(datalen,'utf-8')) #send the buffersize of our data
-    Cs.send(bytes(data,'utf-8')) #send the actual data
+    Cs.send(bytes(datalen + data,'utf-8')) #send the buffersize of our data followed by the data itself
 
 #***please note: For this to work, the client's socket timeout must be less than the server's!***
 def recieve_data(Cs,buffersize,evaluate=False,returnping=False): #tries to recieve some data without checking its validity
