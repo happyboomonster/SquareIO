@@ -257,7 +257,7 @@ def manage_client(IP,PORT): #manages a single client connection
         with obj_lock:
             tmpdata = gather_data(obj[clientnum - 1])
         try:
-            netcode.send_data(Cs,buffersize,tmpdata)
+            netcode.send_data_noerror(Cs,buffersize,tmpdata)
         except: #we get an EOF error sometimes, and a Socket.timeout error sometimes too
             with printer.msgs_lock:
                 printer.msgs.append("    [ERROR] Failed to send start data for client " + str(clientnum))
@@ -271,7 +271,7 @@ def manage_client(IP,PORT): #manages a single client connection
         with printer.msgs_lock:
             printer.msgs.append("[ATTEMPT] Recieving name of client " + str(clientnum))
         try:
-            payload = netcode.recieve_data(Cs,buffersize,evaluate=True)
+            payload = netcode.recieve_data_noerror(Cs,buffersize,evaluate=True)
         except:
             with printer.msgs_lock:
                 printer.msgs.append("    [ERROR] Connection to client timed out...")
@@ -293,7 +293,7 @@ def manage_client(IP,PORT): #manages a single client connection
                 Cs.recv(buffersize) #wait for a confirmation signal
                 for x in range(0,len(food)): #send each individual piece of food one at a time...
                     Fdata = gather_data(food[x])
-                    netcode.send_data(Cs,buffersize,Fdata)
+                    netcode.send_data_noerror(Cs,buffersize,Fdata)
             with printer.msgs_lock:
                 printer.msgs.append("[OK] Successfully sent food particle states!")
         except: #uhoh, something happened...I just know it.

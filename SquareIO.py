@@ -566,8 +566,8 @@ def network(): #the netcode thread!
         try:
             pack = netcode.recieve_data(Cs,buffersize,evaluate=True,returnping=True) #get ALL the server data
         except Exception as e: #we REALLY lost connection?
-            with print_lock:
-                print(e)
+            with printer.msgs_lock:
+                printer.msgs.append(str(e))
             with running_lock:
                 running = False
             with printer.msgs_lock:
@@ -628,10 +628,12 @@ def network(): #the netcode thread!
                             player.size[Sdata[x][0]] += Sdata[x][1] #increment/decrement the sizechange coming from the server
                         except IndexError: #we rejoined our cells within the 30th of a second that it takes this data to come through?
                             try:
-                                print("[WARNING] Couldn't find grow index.")
+                                with printer.msgs_lock:
+                                    printer.msgs.append("[WARNING] Couldn't find grow index.")
                                 player.size[0] += Sdata[x][1] #then just increment cell 0 of player's size
                             except IndexError:
-                                print("[WARNING] Couldn't grow!!!")
+                                with printer.msgs_lock:
+                                    printer.msgs.append("[WARNING] Couldn't grow!!!")
 
             with player_lock: #get server "sync" data
                 Sdata = netpack[4]
@@ -675,13 +677,13 @@ def network(): #the netcode thread!
                     LOSS = 100.00 #we lost 100% packets, oh no!
             loss_counter = [0,0]
 
-        with LOSS_lock:
-            tmp_LOSS = LOSS
-        if(tmp_LOSS > 85): #we're losing every packet but 15%???
-            with running_lock:
-                running = False
-            with printer.msgs_lock:
-                printer.msgs.append("[ERROR] Disconnected due to EXTREME packet loss!")
+##        with LOSS_lock:
+##            tmp_LOSS = LOSS
+##        if(tmp_LOSS > 85): #we're losing every packet but 15%???
+##            with running_lock:
+##                running = False
+##            with printer.msgs_lock:
+##                printer.msgs.append("[ERROR] Disconnected due to EXTREME packet loss!")
 
         Nclock.tick(100) #tick the clock so we can see our PPS (100 is limit so we don't end up with an infinity value)
 
@@ -754,7 +756,7 @@ def start_game(name,port,ip,stretch):
     if(connection):
         print("[INFO] Recieving start data...")
         try:
-            Cdata = netcode.recieve_data(Cs,buffersize)
+            Cdata = netcode.recieve_data_noerror(Cs,buffersize)
         except:
             print("    [ERROR] Connection Lost!!!!")
             connection = False
@@ -768,7 +770,7 @@ def start_game(name,port,ip,stretch):
         player.name = name
         Sendstuff = gather_data(player)
         try:
-            netcode.send_data(Cs,buffersize,Sendstuff)
+            netcode.send_data_noerror(Cs,buffersize,Sendstuff)
         except: #we probably timed out on our recieve signal...
             print("    [ERROR] Couldn't send player name!")
             connection = False
@@ -786,7 +788,7 @@ def start_game(name,port,ip,stretch):
         Cs.send(bytes("          ",'utf-8')) #send an empty 10 byte confirm signal
         try:
             for getfood in range(0,Foodlen):
-                tmpfood = netcode.recieve_data(Cs,buffersize,evaluate=True)
+                tmpfood = netcode.recieve_data_noerror(Cs,buffersize,evaluate=True)
                 Fdata.append(tmpfood[:])
         except:
             print("    [ERROR] Failed to recieve food positions!")
