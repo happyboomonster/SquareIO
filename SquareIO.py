@@ -713,7 +713,7 @@ def start_game(name,port,ip,stretch):
     Serversquares_lock = _thread.allocate_lock()
 
     #netcode buffer size in BYTES (needs to be big enough to recieve a number up to 5 digits as a string)
-    buffersize = 10
+    buffersize = 100
 
     #a flag which tells us whether we already lost the connection
     connection = True
@@ -727,12 +727,11 @@ def start_game(name,port,ip,stretch):
         connection = False
     if(connection):
         print("[OK] Connected to server!")
-        Cs.settimeout(0.25) #(?) second timeout limit
-        try: #empty out the recieve buffer
-            while True:
-                Cs.recv(8)
-        except: #once we get a timeout error, continue.
-            pass
+        Cs.settimeout(2) #(?) second timeout limit
+##        try: #empty out the recieve buffer
+##            Cs.recv(8)
+##        except: #once we get a timeout error, continue.
+##            pass
     if(connection):
         print("[OK] Connection established with server " + ipaddr) #debug info
 
