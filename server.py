@@ -423,7 +423,10 @@ def manage_client(IP,PORT): #manages a single client connection
         except:
             pass
     with printer.msgs_lock:
-        printer.msgs.append("[DISCONNECT, " + str(clientnum) + "] Client has disconnected from server.")
+        try:
+            printer.msgs.append("[DISCONNECT, " + str(clientnum) + "] Client has disconnected from server.")
+        except UnboundLocalError: #we didn't get so far as to even get a clientnum???
+            printer.msgs.append("[DISCONNECT, UNKNOWN]")
 
 def player_handler(): #checks if anyone ate anyone else, or if somebody ate food
     global food
