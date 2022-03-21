@@ -564,7 +564,7 @@ def network(): #the netcode thread!
     while True: #main netcode loop
         #get data about whether we've been EATEN by someone?????!!!!!???
         try:
-            pack = netcode.recieve_data(Cs,buffersize,evaluate=True,returnping=True) #get ALL the server data
+            pack = netcode.recieve_data(Cs,buffersize,evaluate=True,returnping=True,timeout=5) #get ALL the server data
         except Exception as e: #we REALLY lost connection?
             with printer.msgs_lock:
                 printer.msgs.append(str(e))
@@ -733,7 +733,7 @@ def start_game(name,port,ip,stretch):
         connection = False
     if(connection):
         print("[OK] Connected to server!")
-        Cs.settimeout(20) #(?) second timeout limit
+        Cs.settimeout(5) #(?) second timeout limit
     if(connection):
         print("[OK] Connection established with server " + ipaddr) #debug info
 

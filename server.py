@@ -207,7 +207,7 @@ def manage_client(IP,PORT): #manages a single client connection
     #create a socket connection to the client
     buffersize = 10 #default buffer size
     Cs, Caddress = s.accept() #connect to a client
-    Cs.settimeout(40) #set a timeout of (?) seconds for Cs
+    Cs.settimeout(5) #set a timeout of (?) seconds for Cs
     with printer.msgs_lock: #let the WORLD of terminal know...how exciting
         printer.msgs.append("[OK] Client at " + str(Caddress) + " connected successfully.")
 
@@ -391,7 +391,7 @@ def manage_client(IP,PORT): #manages a single client connection
         
         #Recieve client data...
         try:
-            Cdata = netcode.recieve_data(Cs,buffersize,evaluate=True)
+            Cdata = netcode.recieve_data(Cs,buffersize,evaluate=True,returnping=False,timeout=5)
         except socket.timeout: #we're not getting any data in 5 SECONDS?? a ping of 15000 is unplayable, so the person probably disconnected.
             running = False
             break
