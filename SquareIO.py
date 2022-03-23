@@ -788,10 +788,9 @@ def start_game(name,port,ip,stretch):
         Foodlen = int(Cs.recv(buffersize).decode('utf-8')) #get the length of the food list
         Cs.send(bytes("          ",'utf-8')) #send an empty 10 byte confirm signal
         try:
-            tmpfood = netcode.recieve_data_noerror(Cs,buffersize,evaluate=True)
+            tmpfood = netcode.recieve_data(Cs,buffersize,evaluate=True)
             Fdata = eval(str(tmpfood))
-        except Exception as e:
-            print(e)
+        except:
             print("    [ERROR] Failed to recieve food positions!")
             connection = False
     if(connection):
