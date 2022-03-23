@@ -790,7 +790,8 @@ def start_game(name,port,ip,stretch):
         try:
             tmpfood = netcode.recieve_data_noerror(Cs,buffersize,evaluate=True)
             Fdata = eval(str(tmpfood))
-        except:
+        except Exception as e:
+            print(e)
             print("    [ERROR] Failed to recieve food positions!")
             connection = False
     if(connection):
