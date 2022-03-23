@@ -1,8 +1,52 @@
 import pygame
 import font
 
+keys = [
+    [pygame.K_a,"a"],
+    [pygame.K_b,"b"],
+    [pygame.K_c,"c"],
+    [pygame.K_d,"d"],
+    [pygame.K_e,"e"],
+    [pygame.K_f,"f"],
+    [pygame.K_g,"g"],
+    [pygame.K_h,"h"],
+    [pygame.K_i,"i"],
+    [pygame.K_j,"j"],
+    [pygame.K_k,"k"],
+    [pygame.K_l,"l"],
+    [pygame.K_m,"m"],
+    [pygame.K_n,"n"],
+    [pygame.K_o,"o"],
+    [pygame.K_p,"p"],
+    [pygame.K_q,"q"],
+    [pygame.K_r,"r"],
+    [pygame.K_s,"s"],
+    [pygame.K_t,"t"],
+    [pygame.K_u,"u"],
+    [pygame.K_v,"v"],
+    [pygame.K_w,"w"],
+    [pygame.K_x,"x"],
+    [pygame.K_y,"y"],
+    [pygame.K_z,"z"],
+    [pygame.K_0,"0"],
+    [pygame.K_1,"1"],
+    [pygame.K_2,"2"],
+    [pygame.K_3,"3"],
+    [pygame.K_4,"4"],
+    [pygame.K_5,"5"],
+    [pygame.K_6,"6"],
+    [pygame.K_7,"7"],
+    [pygame.K_8,"8"],
+    [pygame.K_9,"9"],
+    [pygame.K_MINUS,"-"],
+    [pygame.K_PLUS,"+"],
+    [pygame.K_PERIOD,"."]
+    ]
+
 class Menu():
     def __init__(self):
+        global keys
+        
         #GENERAL STUFF:
         self.menuscale = 1
         
@@ -18,47 +62,7 @@ class Menu():
         self.buttonscale = [1,1] #x and y scale for button positioning
 
         #Key input constants:
-        self.keys = [
-            [pygame.K_a,"a"],
-            [pygame.K_b,"b"],
-            [pygame.K_c,"c"],
-            [pygame.K_d,"d"],
-            [pygame.K_e,"e"],
-            [pygame.K_f,"f"],
-            [pygame.K_g,"g"],
-            [pygame.K_h,"h"],
-            [pygame.K_i,"i"],
-            [pygame.K_j,"j"],
-            [pygame.K_k,"k"],
-            [pygame.K_l,"l"],
-            [pygame.K_m,"m"],
-            [pygame.K_n,"n"],
-            [pygame.K_o,"o"],
-            [pygame.K_p,"p"],
-            [pygame.K_q,"q"],
-            [pygame.K_r,"r"],
-            [pygame.K_s,"s"],
-            [pygame.K_t,"t"],
-            [pygame.K_u,"u"],
-            [pygame.K_v,"v"],
-            [pygame.K_w,"w"],
-            [pygame.K_x,"x"],
-            [pygame.K_y,"y"],
-            [pygame.K_z,"z"],
-            [pygame.K_0,"0"],
-            [pygame.K_1,"1"],
-            [pygame.K_2,"2"],
-            [pygame.K_3,"3"],
-            [pygame.K_4,"4"],
-            [pygame.K_5,"5"],
-            [pygame.K_6,"6"],
-            [pygame.K_7,"7"],
-            [pygame.K_8,"8"],
-            [pygame.K_9,"9"],
-            [pygame.K_MINUS,"-"],
-            [pygame.K_PLUS,"+"],
-            [pygame.K_PERIOD,"."]
-            ]
+        self.keys = keys
 
     def addoption(self,optionname,optiontype): #adds an option to the variables made in __init__()
         #provided we're not adding an image, append some stuff to our options and optionstype lists
@@ -275,52 +279,49 @@ class Menu():
                     break
         return settings[:]
 
-    def get_input(self,screen,header=""): #makes a basic text input UI with a header of your choice
-        text = "" #this is what we've entered into the UI
-        scale = 1.0 #the scale of our text as we draw it
-        running = True
-        while running:
-            screensize = [screen.get_width(),screen.get_height()]
-            if(scale * font.SIZE * len(list(text)) > screensize[0] - screensize[0] / 5): #we wrote so much text it is over the sides of the screen???
-                scale -= 0.1
-            elif(scale * font.SIZE * len(list(text)) < screensize[0] - screensize[0] / 3 and scale * font.SIZE < screensize[1] - screensize[1] / 3): #we haven't wrote much text obviously...it's not even filling our screen or even close!!!
-                scale += 0.1
-            #clear our screen...
-            screen.fill([0,0,0])
-            #draw a green square around our text we're writing
-            pygame.draw.rect(screen,[0,255,0],[int(screensize[0] / 2.0 - len(list(text)) * scale * font.SIZE / 2.0) - int(font.SIZE * scale / 10),int(screensize[1] / 2.0 - scale * font.SIZE / 2.0) - int(font.SIZE * scale / 10),int(screensize[0] / 2.0 + len(list(text)) * scale * font.SIZE / 2.0) - int(screensize[0] / 2.0 - len(list(text)) * scale * font.SIZE / 2.0) + int(font.SIZE * scale / 10),int(screensize[1] / 2.0 + scale * font.SIZE / 2.0) - int(screensize[1] / 2.0 - scale * font.SIZE / 2.0) + int(font.SIZE * scale / 10)],1)
-            #draw our text
-            font.draw_words(text,[int(screensize[0] / 2.0  - len(list(text)) * scale * font.SIZE / 2.0),int(screensize[1] / 2.0 - scale * font.SIZE / 2.0)],[0,0,255],scale,screen)
-            font.draw_words(header,[int(screensize[0] / 2.0 - len(list(header)) * font.SIZE / 2.0),0],[255,255,0],1,screen)
-            #flip the display
-            pygame.display.flip()
+def get_input(screen,header=""): #makes a basic text input UI with a header of your choice
+    global keys
+    text = "" #this is what we've entered into the UI
+    scale = 1.0 #the scale of our text as we draw it
+    running = True
+    while running:
+        screensize = [screen.get_width(),screen.get_height()]
+        if(scale * font.SIZE * len(list(text)) > screensize[0] - screensize[0] / 5): #we wrote so much text it is over the sides of the screen???
+            scale -= 0.1
+        elif(scale * font.SIZE * len(list(text)) < screensize[0] - screensize[0] / 3 and scale * font.SIZE < screensize[1] - screensize[1] / 3): #we haven't wrote much text obviously...it's not even filling our screen or even close!!!
+            scale += 0.1
+        #clear our screen...
+        screen.fill([0,0,0])
+        #draw a green square around our text we're writing
+        pygame.draw.rect(screen,[0,255,0],[int(screensize[0] / 2.0 - len(list(text)) * scale * font.SIZE / 2.0) - int(font.SIZE * scale / 10),int(screensize[1] / 2.0 - scale * font.SIZE / 2.0) - int(font.SIZE * scale / 10),int(screensize[0] / 2.0 + len(list(text)) * scale * font.SIZE / 2.0) - int(screensize[0] / 2.0 - len(list(text)) * scale * font.SIZE / 2.0) + int(font.SIZE * scale / 10),int(screensize[1] / 2.0 + scale * font.SIZE / 2.0) - int(screensize[1] / 2.0 - scale * font.SIZE / 2.0) + int(font.SIZE * scale / 10)],1)
+        #draw our text
+        font.draw_words(text,[int(screensize[0] / 2.0  - len(list(text)) * scale * font.SIZE / 2.0),int(screensize[1] / 2.0 - scale * font.SIZE / 2.0)],[0,0,255],scale,screen)
+        font.draw_words(header,[int(screensize[0] / 2.0 - len(list(header)) * font.SIZE / 2.0),0],[255,255,0],1,screen)
+        #flip the display
+        pygame.display.flip()
 
-            for event in pygame.event.get(): #check if somebody wanted to type something...
-                if(event.type == pygame.KEYDOWN):
-                    if(event.key == pygame.K_RETURN): #they pressed enter!!!
-                        running = False #exit the loop
-                    elif(event.key == pygame.K_BACKSPACE): #uhoh, we have to delete something!
-                        if(len(list(text)) > 0): #we're not trying to delete nothing?
-                            text = text[:len(list(text)) - 1] #run the backspace then!
-                    else: #they probably pressed something we can add to the string!
-                        for x in range(0,len(self.keys)): #iterate through our list of possible keypresses
-                            if(self.keys[x][0] == event.key): #we found THE key?
-                                text += self.keys[x][1]
-                                break #exit this mad loop!
-        return text #return the input we got
+        for event in pygame.event.get(): #check if somebody wanted to type something...
+            if(event.type == pygame.KEYDOWN):
+                if(event.key == pygame.K_RETURN): #they pressed enter!!!
+                    running = False #exit the loop
+                elif(event.key == pygame.K_BACKSPACE): #uhoh, we have to delete something!
+                    if(len(list(text)) > 0): #we're not trying to delete nothing?
+                        text = text[:len(list(text)) - 1] #run the backspace then!
+                else: #they probably pressed something we can add to the string!
+                    for x in range(0,len(keys)): #iterate through our list of possible keypresses
+                        if(keys[x][0] == event.key): #we found THE key?
+                            text += keys[x][1]
+                            break #exit this mad loop!
+    return text #return the input we got
 
 class Menuhandler():
     def __init__(self):
-        self.keyinput = Menu()
         self.menus = []
         self.menunames = []
         self.menuscale = 1.0
         self.buttonscale = [1.0,1.0]
         self.currentmenu = 0 #the index of the menu we are currently using in the menus[] list
         self.stretch = False
-
-    def get_input(self,screen,heading=""): #gets a string input
-        return self.keyinput.get_input(screen,heading)
 
     def create_menu(self,options,optionstype,indexes,buttonindexes=[],name=""): #indexes is a list of lists of two numbers each. (I know it should be indices)
         #the first number is the index of the button pressed. The second number is the index of the child menu to enter.

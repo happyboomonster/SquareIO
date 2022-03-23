@@ -1,4 +1,4 @@
-import netcode
+import socket
 import time #for getting ping
 
 def justify(string,size): #a function which right justifies a string

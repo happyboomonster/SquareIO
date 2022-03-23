@@ -368,7 +368,7 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
                     with mousepos_lock:
                         pressed_option = rm_handler.menu_collision([0,0],[display.get_width(),display.get_height()],mousepos)
                     if(pressed_option == NAME_OPTION): #we wants to change our name, eh?
-                        player.name = rm_handler.get_input(display,"Please input your new player name")
+                        player.name = menu.get_input(display,"Please input your new player name")
                         rm_handler.reconfigure_setting([player.name],player.name,0,"Change Player Name")
                     elif(pressed_option == DISCONNECT_OPTION): #we're done playing for now?
                         with running_lock:
@@ -815,8 +815,6 @@ def start_game(name,port,ip,stretch):
     if(connection):
         print("    [OK] Recieved client number " + str(clientnum))
 
-    pygame.time.delay(500) #delay a bit so we don't disconnect over a connection error
-
     #make sure our "running" variable is synced with our connection variable
     running = connection
 
@@ -827,13 +825,13 @@ def start_game(name,port,ip,stretch):
     #start our main thread
     return renderer(stretch)
 
-def get_port(m_handler):
+def get_port(display):
     faulty = False
     while True: #get the port number of the server
         if(faulty == False):
-            portnum = m_handler.get_input(display,"Please give me the port number of the server")
+            portnum = menu.get_input(display,"Please give me the port number of the server")
         else:
-            portnum = m_handler.get_input(display,"Bad Portnum. Try again...")
+            portnum = menu.get_input(display,"Bad Portnum. Try again...")
         try: #valid port number?
             int(portnum)
             break #exit the endless loop of faulty port numbers
@@ -914,15 +912,15 @@ while playing: #basic menu setup to make the game more UI friendly
                 playing = False
             #does we wants to change our IP?
             elif(pressed_option == IP_BUTTON):
-                IP = m_handler.get_input(display,"Please enter the server IP address")
+                IP = menu.get_input(display,"Please enter the server IP address")
                 m_handler.reconfigure_setting([IP],IP,0,"Server IP")
             #does we wants to change our PORT?
             elif(pressed_option == PORT_BUTTON):
-                PORT = get_port(m_handler)
+                PORT = get_port(display)
                 m_handler.reconfigure_setting([PORT],PORT,0,"Server Port Number")
             #does we wants to change our player name?
             elif(pressed_option == NAME_BUTTON):
-                NAME = m_handler.get_input(display,"Please enter your player name")
+                NAME = menu.get_input(display,"Please enter your player name")
                 m_handler.reconfigure_setting([NAME],NAME,0,"Player Name")
             #does we wants to START THE GAME???
             elif(pressed_option == GAME_START_BUTTON):
