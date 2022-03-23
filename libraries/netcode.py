@@ -55,24 +55,26 @@ def send_data_noerror(Cs,buffersize,data,ack="ACK"): #sends a packet of data as 
 def recieve_data_noerror(Cs,buffersize,evaluate=False,returnping=False,ack="ACK"): #recieves a packet of data as a string. Uses some basic error correction to lower the chances of disconnection
     pingstart = time.time() #set a starting ping time
     while True:
+        donteval = False
         Nbuffersize = Cs.recv(buffersize).decode('utf-8') #get our data's buffersize
+        print(Nbuffersize)
         try:
             Nbuffersize = int(Nbuffersize)
         except:
+            donteval = True
             Cs.send(bytes(justify("nak",buffersize),'utf-8')) #we didn't get through...
-            continue
         data = Cs.recv(Nbuffersize).decode('utf-8') #recieve our data
         #once we get our data, now we have to check it for errors...
-        if(evaluate): #if we're planning on pre-evaluating our data, use that as a check to check for errors.
+        if(evaluate and not donteval): #if we're planning on pre-evaluating our data, use that as a check to check for errors.
             try:
                 eval(data)
             except: #that data didn't get through?
                 Cs.send(bytes(justify("nak",buffersize),'utf-8')) #we didn't get through...
                 continue
         #also, we know that our data should be a certain length. Check the recieved length against what was supposed to be recieved...
-        if(Nbuffersize != len(list(data))):
+        if(not donteval and Nbuffersize != len(list(data))):
             Cs.send(bytes(justify("nak",buffersize),'utf-8')) #we didn't get through...
-        else:
+        elif(not donteval):
             Cs.send(bytes(justify(ack,buffersize),'utf-8'))
             break #exit this loop for crying out loud!
     ping = int(1000.0 * (time.time() - pingstart)) #calculate our ping

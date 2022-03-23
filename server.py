@@ -295,7 +295,7 @@ def manage_client(IP,PORT): #manages a single client connection
                 for x in range(0,len(food)): #send each individual piece of food one at a time...
                     Fdata = gather_data(food[x])
                     totalFdata.append(eval(Fdata))
-                netcode.send_data(Cs,buffersize,totalFdata)
+                netcode.send_data_noerror(Cs,buffersize,totalFdata)
             with printer.msgs_lock:
                 printer.msgs.append("[OK] Successfully sent food particle states!")
         except: #uhoh, something happened...I just know it.
