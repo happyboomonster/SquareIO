@@ -564,7 +564,7 @@ def network(): #the netcode thread!
     while True: #main netcode loop
         #get data about whether we've been EATEN by someone?????!!!!!???
         try:
-            pack = netcode.recieve_data(Cs,buffersize,evaluate=True,returnping=True,timeout=5) #get ALL the server data
+            pack = netcode.recieve_data(Cs,buffersize,returnping=True,timeout=5) #get ALL the server data
         except Exception as e: #we REALLY lost connection?
             with printer.msgs_lock:
                 printer.msgs.append(str(e))
@@ -682,14 +682,6 @@ def network(): #the netcode thread!
                 except ZeroDivisionError: #we have perfect packets?
                     LOSS = 100.00 #we lost 100% packets, oh no!
             loss_counter = [0,0]
-
-##        with LOSS_lock:
-##            tmp_LOSS = LOSS
-##        if(tmp_LOSS > 85): #we're losing every packet but 15%???
-##            with running_lock:
-##                running = False
-##            with printer.msgs_lock:
-##                printer.msgs.append("[ERROR] Disconnected due to EXTREME packet loss!")
 
         Nclock.tick(100) #tick the clock so we can see our PPS (100 is limit so we don't end up with an infinity value)
 

@@ -12,7 +12,7 @@ def send_data(Cs,buffersize,data): #sends some data without checking if the data
     data = str(data)
     Cs.send(bytes(datalen + data,'utf-8')) #send the buffersize of our data followed by the data itself
 
-def recieve_data(Cs,buffersize,evaluate=False,returnping=False,timeout=20): #tries to recieve some data without checking its validity
+def recieve_data(Cs,buffersize,returnping=False,timeout=20): #tries to recieve some data without checking its validity
     pingstart = time.time() #set a starting ping time
     Nbuffersize = Cs.recv(buffersize) #get our data's buffersize
     try:
@@ -23,20 +23,34 @@ def recieve_data(Cs,buffersize,evaluate=False,returnping=False,timeout=20): #tri
         except:
             data = None
     except:
+        moredata = ""
         Cs.settimeout(0.1) #we need to temporarily set this to a low value so we can resync our send/recieve socket buffers to continue packet exchange.
         while True: #try to empty the Cs buffer of data so we can get back into sync next packet
             try:
-                Cs.recv(pow(10,buffersize)) #recieve 10^buffersize bytes
+                moredata += Cs.recv(pow(10,buffersize)).decode('utf-8') #recieve 10^buffersize bytes
             except: #this exception should only occur once we empty the buffer of data we were sent.
                 break #Which will in turn exit this loop, and we should be back into sync with the server!
-        data = None
+        #Now that we've recieved any extra data that hasn't exited the buffer yet, add it to "data" so that *maybe*(?) we still get a packet through???
+        data += moredata
         Cs.settimeout(timeout) #reset the packet timeout to its normal state
-    ping = int(1000.0 * (time.time() - pingstart)) #calculate our ping
-    if(evaluate):
-        try:
+    try: #now we *try* to evaluate our data
+        data = eval(data)
+    except: #we couldn't evaluate our data???
+        moredata = ""
+        Cs.settimeout(0.1) #we need to temporarily set this to a low value so we can resync our send/recieve socket buffers to continue packet exchange.
+        while True: #try to empty the Cs buffer of data so we can get back into sync next packet
+            try:
+                moredata += Cs.recv(pow(10,buffersize)).decode('utf-8') #recieve 10^buffersize bytes
+            except: #this exception should only occur once we empty the buffer of data we were sent.
+                break #Which will in turn exit this loop, and we should be back into sync with the server!
+        #Now that we've recieved any extra data that hasn't exited the buffer yet, add it to "data" so that *maybe*(?) we still get a packet through???
+        data += moredata
+        Cs.settimeout(timeout) #reset the packet timeout to its normal state
+        try: #we try to evaluate our data one more time...
             data = eval(data)
-        except: #if we didn't get good data, just return none.
+        except:
             data = None
+    ping = int(1000.0 * (time.time() - pingstart)) #calculate our ping
     if(returnping == False):
         return data
     else:
