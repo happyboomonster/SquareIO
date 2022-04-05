@@ -588,8 +588,8 @@ def network(): #the netcode thread!
             if(tmp_RESPAWN == False): #we're not respawning?
                 Edata = netpack[0] #we start by checking if the server thinks we got eaten...
                 for parse in range(0,len(Edata)):
-                    with printer.msgs_lock:
-                        printer.msgs.append(str(parse))
+##                    with printer.msgs_lock: #uncomment only if debugging is needed
+##                        printer.msgs.append(str(parse))
                     with player_lock:
                         try:
                             del(player.size[parse])
@@ -685,7 +685,7 @@ def network(): #the netcode thread!
 
         Nclock.tick(100) #tick the clock so we can see our PPS (100 is limit so we don't end up with an infinity value)
 
-        #and set our PPS so we can see our swwwwwweeet performance stats
+        #and set our PPS so we can see our terrible performance stats
         with PPS_lock:
             PPS = justify(str(int(round(Nclock.get_fps(),0))), 3)
 

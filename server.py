@@ -193,7 +193,7 @@ def manage_client(IP,PORT): #manages a single client connection
     global game_phase
     global timeleft
     #a constant which defines our goal Packets Per Second
-    GOAL_PPS = 10
+    GOAL_PPS = 30
 
     #whether we need the client to respawn
     RESPAWN = False

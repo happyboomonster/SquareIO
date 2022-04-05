@@ -24,27 +24,33 @@ def recieve_data(Cs,buffersize,returnping=False,timeout=20): #tries to recieve s
             data = None
     except:
         moredata = ""
-        Cs.settimeout(0.1) #we need to temporarily set this to a low value so we can resync our send/recieve socket buffers to continue packet exchange.
+        Cs.settimeout(0.02) #we need to temporarily set this to a low value so we can resync our send/recieve socket buffers to continue packet exchange.
         while True: #try to empty the Cs buffer of data so we can get back into sync next packet
             try:
                 moredata += Cs.recv(pow(10,buffersize)).decode('utf-8') #recieve 10^buffersize bytes
             except: #this exception should only occur once we empty the buffer of data we were sent.
                 break #Which will in turn exit this loop, and we should be back into sync with the server!
         #Now that we've recieved any extra data that hasn't exited the buffer yet, add it to "data" so that *maybe*(?) we still get a packet through???
-        data += moredata
+        try: #if things go wrong..."data" won't even exist, causing this to throw up an error.
+            data += moredata
+        except:
+            data = None
         Cs.settimeout(timeout) #reset the packet timeout to its normal state
     try: #now we *try* to evaluate our data
         data = eval(data)
     except: #we couldn't evaluate our data???
         moredata = ""
-        Cs.settimeout(0.1) #we need to temporarily set this to a low value so we can resync our send/recieve socket buffers to continue packet exchange.
+        Cs.settimeout(0.02) #we need to temporarily set this to a low value so we can resync our send/recieve socket buffers to continue packet exchange.
         while True: #try to empty the Cs buffer of data so we can get back into sync next packet
             try:
                 moredata += Cs.recv(pow(10,buffersize)).decode('utf-8') #recieve 10^buffersize bytes
             except: #this exception should only occur once we empty the buffer of data we were sent.
                 break #Which will in turn exit this loop, and we should be back into sync with the server!
         #Now that we've recieved any extra data that hasn't exited the buffer yet, add it to "data" so that *maybe*(?) we still get a packet through???
-        data += moredata
+        try: #if we didn't even get data through, this variable won't even exist!
+            data += moredata
+        except:
+            data = None
         Cs.settimeout(timeout) #reset the packet timeout to its normal state
         try: #we try to evaluate our data one more time...
             data = eval(data)
