@@ -562,9 +562,8 @@ def network(): #the netcode thread!
     LOSS_UPDATE_TIME = 10 #every LOSS_UPDATE_TIME packets our loss counter gets updated to the LOSS variable
 
     while True: #main netcode loop
-        #get data about whether we've been EATEN by someone?????!!!!!???
-        try:
-            pack = netcode.recieve_data(Cs,buffersize,returnping=True,timeout=5) #get ALL the server data
+        try: #get ALL the server data
+            pack = netcode.recieve_data(Cs,buffersize,timeout=5)
         except Exception as e: #we REALLY lost connection?
             with printer.msgs_lock:
                 printer.msgs.append(str(e))
@@ -573,7 +572,10 @@ def network(): #the netcode thread!
             with printer.msgs_lock:
                 printer.msgs.append("[ERROR] Server did not send data to client!")
             break
-        netpack = pack[0]
+        with printer.msgs_lock: #print out any packet loss info we get!
+            for x in range(0,len(pack[2])):
+                printer.msgs.append(pack[2][x])
+        netpack = pack[0] #grab the actual packet data itself
         if(netpack == None): #the packet didn't make it through?
             loss_counter[1] += 1 #add a failure signal to our packet loss counter
         else: #we got the data successfully?

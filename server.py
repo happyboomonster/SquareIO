@@ -193,7 +193,7 @@ def manage_client(IP,PORT): #manages a single client connection
     global game_phase
     global timeleft
     #a constant which defines our goal Packets Per Second
-    GOAL_PPS = 30
+    GOAL_PPS = 10
 
     #whether we need the client to respawn
     RESPAWN = False
@@ -373,7 +373,7 @@ def manage_client(IP,PORT): #manages a single client connection
             if(len(obj[clientnum - 1].pos) == 0): #we got eaten???
                 RESPAWN = True
         with obj_lock:
-            if(RESPAWN == True):
+            if(RESPAWN == True and not obj[clientnum - 1].respawn == True):
                 obj[clientnum - 1].respawn = True #A player can't be eaten until this flag goes false.
                 obj[clientnum - 1].size = [SIZE]
                 obj[clientnum - 1].pos = [[random.randint(0,640),random.randint(0,480)]]
@@ -391,8 +391,12 @@ def manage_client(IP,PORT): #manages a single client connection
         
         #Recieve client data...
         try:
-            Cdata = netcode.recieve_data(Cs,buffersize,returnping=False,timeout=5)
-        except socket.timeout: #we're not getting any data in 5 SECONDS?? a ping of 15000 is unplayable, so the person probably disconnected.
+            Cdata_payload = netcode.recieve_data(Cs,buffersize,timeout=5)
+            Cdata = Cdata_payload[0]
+            with printer.msgs_lock: #print out any packet loss logs we acquire
+                for x in range(0,len(Cdata_payload[2])):
+                    printer.msgs.append(Cdata_payload[2][x])
+        except socket.timeout: #we're not getting any data in 5 SECONDS?? a ping of 5000 is unplayable, so the person probably disconnected.
             running = False
             break
         except ConnectionResetError: #a guaranteed disconnect? Connection DROPPED, player gets shoe.

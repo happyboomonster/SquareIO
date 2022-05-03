@@ -1,5 +1,28 @@
+#NETCODE.PY LIBRARY by Lincoln V. ---VERSION 0.02---
+
 import socket
 import time #for getting ping
+
+#a constant which tells how long the recieve_data() command will wait for extra packets to arrive.
+PACKET_TIME = 0.25 #in seconds
+
+#a counter for our packets - this number can grow quite large, which is why there is a reset counter constant below it...
+packet_count = 0
+MAX_PACKET_CT = 65535
+
+#some premade error messages, as well as some constants to help show which message corresponds to which index in the error msgs list
+ERROR_MSGS = [
+    "[PACKET LOSS] Failed to retrieve buffersize!",
+    "[PACKET LOSS] Failed to retrieve an initial data burst through the socket connection!",
+    "[PACKET WARNING] Couldn't evaluate the data string INITIALLY - Retrying...",
+    "[PACKET WARNING] Couldn't evaluate the data string! Retrying...",
+    "[PACKET LOSS] Lost the packet during final evaluation!"
+    ]
+BUFFERSIZE_FAIL = 0 #failed to retrieve buffersize
+INITIAL_DATA_BURST = 1 #failed to retrieve the initial burst of data through the socket
+INITIAL_EVAL = 2 #this is the first time we try to evaluate a data string. Sometimes works, sometimes doesn't.
+EVAL = 3 #>1 time that we try to evaluate a data string. Most packets which enter this phase of recovery come out unscathed.
+LOST_EVAL = 4 #>1 time we try to evaluate a data string, and fails.
 
 def justify(string,size): #a function which right justifies a string
     if(size - len(list(string)) > 0):
@@ -12,55 +35,59 @@ def send_data(Cs,buffersize,data): #sends some data without checking if the data
     data = str(data)
     Cs.send(bytes(datalen + data,'utf-8')) #send the buffersize of our data followed by the data itself
 
-def recieve_data(Cs,buffersize,returnping=False,timeout=20): #tries to recieve some data without checking its validity
-    pingstart = time.time() #set a starting ping time
-    Nbuffersize = Cs.recv(buffersize) #get our data's buffersize
+def recieve_data(Cs,buffersize,timeout=20): #tries to recieve some data without checking its validity
+    #   ---    Basic setup with some preset variables   ---
+    errors = [] #a list of errors - we can append strings to it, which we can then log once the function is completed.
+    ping_start = time.time() #set a starting ping time
+    data = "" #we set a default value to data, just so we don't get any exceptions from the variable not existing.
+    #   ---    Handling packet numbering    ---
+    packet_count += 1
+    if(packet_count > MAX_PACKET_CT):
+        packet_count = 0
+    #   ---    get our data's buffersize    ---
     try:
+        Nbuffersize = Cs.recv(buffersize)
         Nbuffersize = int(Nbuffersize.decode('utf-8'))
+    except:
+        errors.append("(" + justify(str(packet_count),5) + ") " + ERROR_MSGS[BUFFERSIZE_FAIL])
+        data = None
+    #   ---    now we try to grab an initial burst of data  ---
+    if(data != None):
         try:
-            data = Cs.recv(Nbuffersize) #recieve our data
+            data = Cs.recv(Nbuffersize)
             data = data.decode('utf-8')
         except:
+            errors.append("(" + justify(str(packet_count),5) + ") " + ERROR_MSGS[INITIAL_DATA_BURST])
             data = None
-    except:
-        moredata = ""
-        Cs.settimeout(0.02) #we need to temporarily set this to a low value so we can resync our send/recieve socket buffers to continue packet exchange.
-        while True: #try to empty the Cs buffer of data so we can get back into sync next packet
-            try:
-                moredata += Cs.recv(pow(10,buffersize)).decode('utf-8') #recieve 10^buffersize bytes
-            except: #this exception should only occur once we empty the buffer of data we were sent.
-                break #Which will in turn exit this loop, and we should be back into sync with the server!
-        #Now that we've recieved any extra data that hasn't exited the buffer yet, add it to "data" so that *maybe*(?) we still get a packet through???
-        try: #if things go wrong..."data" won't even exist, causing this to throw up an error.
-            data += moredata
-        except:
-            data = None
-        Cs.settimeout(timeout) #reset the packet timeout to its normal state
-    try: #now we *try* to evaluate our data
-        data = eval(data)
-    except: #we couldn't evaluate our data???
-        moredata = ""
-        Cs.settimeout(0.02) #we need to temporarily set this to a low value so we can resync our send/recieve socket buffers to continue packet exchange.
-        while True: #try to empty the Cs buffer of data so we can get back into sync next packet
-            try:
-                moredata += Cs.recv(pow(10,buffersize)).decode('utf-8') #recieve 10^buffersize bytes
-            except: #this exception should only occur once we empty the buffer of data we were sent.
-                break #Which will in turn exit this loop, and we should be back into sync with the server!
-        #Now that we've recieved any extra data that hasn't exited the buffer yet, add it to "data" so that *maybe*(?) we still get a packet through???
-        try: #if we didn't even get data through, this variable won't even exist!
-            data += moredata
-        except:
-            data = None
-        Cs.settimeout(timeout) #reset the packet timeout to its normal state
-        try: #we try to evaluate our data one more time...
+    #   ---    Now we try to evaluate our data, and hope it just works the first time...    ---
+    if(data != None):
+        initial_success = True
+        try:
             data = eval(data)
-        except:
-            data = None
-    ping = int(1000.0 * (time.time() - pingstart)) #calculate our ping
-    if(returnping == False):
-        return data
-    else:
-        return data, ping
+        except: #it didn't work? Well then we set this flag so that we know we need to try something else before we count the data as lost...
+            errors.append("(" + justify(str(packet_count),5) + ") " + ERROR_MSGS[INITIAL_EVAL])
+            initial_success = False
+    #   ---    IF we can't evaluate the data string as-is, we try to see if there is ANYTHING left in the socket buffer    ---
+    if(data != None):
+        if(initial_success == False):
+            Cs.settimeout(PACKET_TIME)
+            while True:
+                try: #grab some data if we can
+                    data += Cs.recv(pow(10,buffersize)).decode('utf-8')
+                    try: #try to evaluate the data string again after recieving more tidbits of it
+                        data = eval(data) #IF we can evaluate the data, then we break this loop.
+                        break
+                    except: #else, we repeat this loop, trying to grab more data from the buffer cache, and hoping that it completes this data string...
+                        errors.append("(" + justify(str(packet_count),5) + ") " + ERROR_MSGS[EVAL])
+                        pass
+                except: #if there's nothing left to grab, just exit the loop, and count the data as lost.
+                    data = None
+                    errors.append("(" + justify(str(packet_count),5) + ") " + ERROR_MSGS[LOST_EVAL])
+                    break
+            Cs.settimeout(timeout) #reset our socket timeout back to its default setting
+    #   ---    calculate our ping    ---
+    ping = int(1000.0 * (time.time() - ping_start))
+    return data, ping, errors #return the data this function gathered
 
 def send_data_noerror(Cs,buffersize,data,ack="ACK"): #sends a packet of data as a string. Uses some basic error correction to lower the chances of disconnection
     datalen = justify(str(len(list(str(data)))),buffersize)
