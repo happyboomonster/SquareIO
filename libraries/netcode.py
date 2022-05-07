@@ -1,4 +1,4 @@
-#NETCODE.PY LIBRARY by Lincoln V. ---VERSION 0.02---
+#NETCODE.PY library by Lincoln V. ---VERSION 0.04---
 
 import socket
 import time #for getting ping
@@ -36,22 +36,23 @@ def send_data(Cs,buffersize,data): #sends some data without checking if the data
     Cs.send(bytes(datalen + data,'utf-8')) #send the buffersize of our data followed by the data itself
 
 def recieve_data(Cs,buffersize,timeout=20): #tries to recieve some data without checking its validity
-    #   ---    Basic setup with some preset variables   ---
+    #   --- Basic setup with some preset variables ---
+    global packet_count #a variable which keeps track of how many packets we've recieved.
     errors = [] #a list of errors - we can append strings to it, which we can then log once the function is completed.
     ping_start = time.time() #set a starting ping time
     data = "" #we set a default value to data, just so we don't get any exceptions from the variable not existing.
-    #   ---    Handling packet numbering    ---
+    #   --- Handling packet numbering ---
     packet_count += 1
     if(packet_count > MAX_PACKET_CT):
         packet_count = 0
-    #   ---    get our data's buffersize    ---
+    #   --- get our data's buffersize ---
     try:
         Nbuffersize = Cs.recv(buffersize)
         Nbuffersize = int(Nbuffersize.decode('utf-8'))
     except:
         errors.append("(" + justify(str(packet_count),5) + ") " + ERROR_MSGS[BUFFERSIZE_FAIL])
         data = None
-    #   ---    now we try to grab an initial burst of data  ---
+    #   --- now we try to grab an initial burst of data ---
     if(data != None):
         try:
             data = Cs.recv(Nbuffersize)
@@ -59,7 +60,7 @@ def recieve_data(Cs,buffersize,timeout=20): #tries to recieve some data without 
         except:
             errors.append("(" + justify(str(packet_count),5) + ") " + ERROR_MSGS[INITIAL_DATA_BURST])
             data = None
-    #   ---    Now we try to evaluate our data, and hope it just works the first time...    ---
+    #   --- Now we try to evaluate our data, and hope it just works the first time ---
     if(data != None):
         initial_success = True
         try:
@@ -67,7 +68,16 @@ def recieve_data(Cs,buffersize,timeout=20): #tries to recieve some data without 
         except: #it didn't work? Well then we set this flag so that we know we need to try something else before we count the data as lost...
             errors.append("(" + justify(str(packet_count),5) + ") " + ERROR_MSGS[INITIAL_EVAL])
             initial_success = False
-    #   ---    IF we can't evaluate the data string as-is, we try to see if there is ANYTHING left in the socket buffer    ---
+    #   --- IF we lost our data somewhere in this mess, we need to make sure to empty the data buffer ---
+    if(data == None):
+        Cs.settimeout(PACKET_TIME) #lower the timeout so that we don't get a ping spike because of a dropped packet
+        while True:
+            try:
+                Cs.recv(pow(10,buffersize))
+            except: #once we empty the socket buffer, just exit this loop
+                Cs.settimeout(timeout) #restore the old timeout value
+                break
+    #   --- IF we can't evaluate the data string as-is, we try to see if there is ANYTHING left in the socket buffer ---
     if(data != None):
         if(initial_success == False):
             Cs.settimeout(PACKET_TIME)
@@ -85,7 +95,7 @@ def recieve_data(Cs,buffersize,timeout=20): #tries to recieve some data without 
                     errors.append("(" + justify(str(packet_count),5) + ") " + ERROR_MSGS[LOST_EVAL])
                     break
             Cs.settimeout(timeout) #reset our socket timeout back to its default setting
-    #   ---    calculate our ping    ---
+    #   --- calculate our ping ---
     ping = int(1000.0 * (time.time() - ping_start))
     return data, ping, errors #return the data this function gathered
 

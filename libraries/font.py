@@ -1,6 +1,8 @@
+#font.py library by Lincoln V. ---VERSION 0.01---
+
 import pygame
 
-SIZE = 12 #constant pixel size for font at scale 1.0
+SIZE = 14 #constant pixel size for font at scale 1.0
 
 dictionary = [ #a list which interprets the match of a symbol to a number index
         ["a",0],
