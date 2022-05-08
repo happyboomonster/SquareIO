@@ -1,4 +1,4 @@
-#NETCODE.PY library by Lincoln V. ---VERSION 0.07---
+#NETCODE.PY library by Lincoln V. ---VERSION 0.08---
 
 import socket
 import time #for getting ping
@@ -46,7 +46,7 @@ def recieve_data(Cs,buffersize,timeout=20,client_number=0): #tries to recieve so
     try:
         int(PACKET_TIME[client_number])
     except IndexError: #packet_time[client_number] doesn't exist?
-        for x in range(0,client_number - len(PACKET_TIME)): #add values of 0.25 seconds to PACKET_TIME until it is length of client_number
+        for x in range(0,client_number - (len(PACKET_TIME) - 1)): #add values of 0.25 seconds to PACKET_TIME until it is length of client_number
             PACKET_TIME.append(0.25)
     #   --- Handling packet numbering ---
     packet_count += 1
