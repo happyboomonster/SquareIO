@@ -1,4 +1,4 @@
-#NETCODE.PY library by Lincoln V. ---VERSION 0.06---
+#NETCODE.PY library by Lincoln V. ---VERSION 0.07---
 
 import socket
 import time #for getting ping
@@ -106,10 +106,10 @@ def recieve_data(Cs,buffersize,timeout=20,client_number=0): #tries to recieve so
     ping = int(1000.0 * (time.time() - ping_start))
     #   --- Account for laggy packets ---
     if(len(errors) == 0): #IF we get an error free packet, take that as our minimum packet time.
-        if(PACKET_TIME[client_number] < ping / 333.0): #if our PACKET_TIME is smaller than our 3x our ping, set PACKET_TIME to the new ping value.
-            PACKET_TIME[client_number] = (ping / 333) #set our packet time wait to 3 times our ping to compensate for bad latency spikes
-        elif(PACKET_TIME[client_number] > (ping/1000.0) * 1.1): #if our ping is below PACKET_TIME by roughly 10%, we decrease our PACKET_TIME by 1%
-            PACKET_TIME[client_number] = PACKET_TIME[client_number] * 0.99
+        if(PACKET_TIME[client_number] < ping / 995.0): #if our PACKET_TIME is smaller than our 3x our ping, set PACKET_TIME to the new ping value.
+            PACKET_TIME[client_number] = (ping / 995.0) #set our packet time wait to 3 times our ping to compensate for bad latency spikes
+        elif(PACKET_TIME[client_number] > (ping/1000.0) * 1.1): #if our ping is below PACKET_TIME by roughly 10%, we decrease our PACKET_TIME by 9%
+            PACKET_TIME[client_number] = PACKET_TIME[client_number] * 0.91
     return data, ping, errors #return the data this function gathered
 
 def send_data_noerror(Cs,buffersize,data,ack="ACK"): #sends a packet of data as a string. Uses some basic error correction to lower the chances of disconnection
