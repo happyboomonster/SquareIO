@@ -1,4 +1,4 @@
-#NETCODE.PY library by Lincoln V. ---VERSION 0.04---
+#NETCODE.PY library by Lincoln V. ---VERSION 0.05---
 
 import socket
 import time #for getting ping
@@ -38,6 +38,7 @@ def send_data(Cs,buffersize,data): #sends some data without checking if the data
 def recieve_data(Cs,buffersize,timeout=20): #tries to recieve some data without checking its validity
     #   --- Basic setup with some preset variables ---
     global packet_count #a variable which keeps track of how many packets we've recieved.
+    global PACKET_TIME #constant which is how long packets should be waited for
     errors = [] #a list of errors - we can append strings to it, which we can then log once the function is completed.
     ping_start = time.time() #set a starting ping time
     data = "" #we set a default value to data, just so we don't get any exceptions from the variable not existing.
@@ -97,6 +98,9 @@ def recieve_data(Cs,buffersize,timeout=20): #tries to recieve some data without 
             Cs.settimeout(timeout) #reset our socket timeout back to its default setting
     #   --- calculate our ping ---
     ping = int(1000.0 * (time.time() - ping_start))
+    #   --- Account for laggy packets ---
+    if(len(errors) == 0): #IF we get an error free packet, take that as our minimum packet time.
+        PACKET_TIME = ping * 3 #set our packet time wait to 3 times our ping to compensate for bad latency spikes
     return data, ping, errors #return the data this function gathered
 
 def send_data_noerror(Cs,buffersize,data,ack="ACK"): #sends a packet of data as a string. Uses some basic error correction to lower the chances of disconnection
