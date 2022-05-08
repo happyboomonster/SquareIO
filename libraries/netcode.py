@@ -1,10 +1,10 @@
-#NETCODE.PY library by Lincoln V. ---VERSION 0.05---
+#NETCODE.PY library by Lincoln V. ---VERSION 0.06---
 
 import socket
 import time #for getting ping
 
 #a constant which tells how long the recieve_data() command will wait for extra packets to arrive.
-PACKET_TIME = 0.25 #in seconds
+PACKET_TIME = [0.25] #in seconds - This is a list because recieve_data() can have different packet time values for individual clients.
 
 #a counter for our packets - this number can grow quite large, which is why there is a reset counter constant below it...
 packet_count = 0
@@ -35,13 +35,19 @@ def send_data(Cs,buffersize,data): #sends some data without checking if the data
     data = str(data)
     Cs.send(bytes(datalen + data,'utf-8')) #send the buffersize of our data followed by the data itself
 
-def recieve_data(Cs,buffersize,timeout=20): #tries to recieve some data without checking its validity
+def recieve_data(Cs,buffersize,timeout=20,client_number=0): #tries to recieve some data without checking its validity
     #   --- Basic setup with some preset variables ---
     global packet_count #a variable which keeps track of how many packets we've recieved.
     global PACKET_TIME #constant which is how long packets should be waited for
     errors = [] #a list of errors - we can append strings to it, which we can then log once the function is completed.
     ping_start = time.time() #set a starting ping time
     data = "" #we set a default value to data, just so we don't get any exceptions from the variable not existing.
+    #   --- Make sure there is an initial value of 0.25 seconds inside PACKET_TIME[client_number] if it doesn't exist ---
+    try:
+        int(PACKET_TIME[client_number])
+    except IndexError: #packet_time[client_number] doesn't exist?
+        for x in range(0,client_number - len(PACKET_TIME)): #add values of 0.25 seconds to PACKET_TIME until it is length of client_number
+            PACKET_TIME.append(0.25)
     #   --- Handling packet numbering ---
     packet_count += 1
     if(packet_count > MAX_PACKET_CT):
@@ -71,7 +77,7 @@ def recieve_data(Cs,buffersize,timeout=20): #tries to recieve some data without 
             initial_success = False
     #   --- IF we lost our data somewhere in this mess, we need to make sure to empty the data buffer ---
     if(data == None):
-        Cs.settimeout(PACKET_TIME) #lower the timeout so that we don't get a ping spike because of a dropped packet
+        Cs.settimeout(PACKET_TIME[client_number]) #lower the timeout so that we don't get a ping spike because of a dropped packet
         while True:
             try:
                 Cs.recv(pow(10,buffersize))
@@ -81,7 +87,7 @@ def recieve_data(Cs,buffersize,timeout=20): #tries to recieve some data without 
     #   --- IF we can't evaluate the data string as-is, we try to see if there is ANYTHING left in the socket buffer ---
     if(data != None):
         if(initial_success == False):
-            Cs.settimeout(PACKET_TIME)
+            Cs.settimeout(PACKET_TIME[client_number])
             while True:
                 try: #grab some data if we can
                     data += Cs.recv(pow(10,buffersize)).decode('utf-8')
@@ -100,7 +106,10 @@ def recieve_data(Cs,buffersize,timeout=20): #tries to recieve some data without 
     ping = int(1000.0 * (time.time() - ping_start))
     #   --- Account for laggy packets ---
     if(len(errors) == 0): #IF we get an error free packet, take that as our minimum packet time.
-        PACKET_TIME = ping * 3 #set our packet time wait to 3 times our ping to compensate for bad latency spikes
+        if(PACKET_TIME[client_number] < ping / 333.0): #if our PACKET_TIME is smaller than our 3x our ping, set PACKET_TIME to the new ping value.
+            PACKET_TIME[client_number] = (ping / 333) #set our packet time wait to 3 times our ping to compensate for bad latency spikes
+        elif(PACKET_TIME[client_number] > (ping/1000.0) * 1.1): #if our ping is below PACKET_TIME by roughly 10%, we decrease our PACKET_TIME by 1%
+            PACKET_TIME[client_number] = PACKET_TIME[client_number] * 0.99
     return data, ping, errors #return the data this function gathered
 
 def send_data_noerror(Cs,buffersize,data,ack="ACK"): #sends a packet of data as a string. Uses some basic error correction to lower the chances of disconnection
