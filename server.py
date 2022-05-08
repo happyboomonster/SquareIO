@@ -315,11 +315,12 @@ def manage_client(IP,PORT): #manages a single client connection
         Sclock = pygame.time.Clock() #make sure get our goal PPS
         with printer.msgs_lock: #we managed to connect, did we?
             printer.msgs.append("    [OK] Successfully joined server!")
-        with client_connected_lock: #make sure the server thread knows that we got a client on us!
-            client_connected = True
         with obj_lock: #NOW other players can eat us...
             obj[clientnum - 1].connected = True
             obj[clientnum - 1].respawn = False
+
+    with client_connected_lock: #make sure the server thread knows that we got a client on us! (this needs to stay out of any conditionals, because the server connections rely on it)
+        client_connected = True
 
     with game_phase_lock:
         Cgamephase = game_phase
