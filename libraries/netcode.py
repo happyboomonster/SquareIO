@@ -1,4 +1,4 @@
-#NETCODE.PY library by Lincoln V. ---VERSION 0.11---
+#NETCODE.PY library by Lincoln V. ---VERSION 0.12---
 
 import socket
 import time #for getting ping
@@ -102,7 +102,7 @@ def recieve_data(Cs,buffersize,timeout=20,client_number=0): #tries to recieve so
                     data = None
                     errors.append("(" + justify(str(packet_count),5) + ") " + ERROR_MSGS[LOST_EVAL])
                     break
-            Cs.settimeout(timeout) #reset our socket timeout back to its default setting
+    Cs.settimeout(timeout) #reset our socket timeout back to its default setting
     #   --- calculate our ping ---
     ping = int(1000.0 * (time.time() - ping_start))
     #   --- Account for laggy packets ---
