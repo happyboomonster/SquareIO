@@ -1,10 +1,11 @@
-#NETCODE.PY library by Lincoln V. ---VERSION 0.08---
+#NETCODE.PY library by Lincoln V. ---VERSION 0.11---
 
 import socket
 import time #for getting ping
 
 #a constant which tells how long the recieve_data() command will wait for extra packets to arrive.
 PACKET_TIME = [0.25] #in seconds - This is a list because recieve_data() can have different packet time values for individual clients.
+PACKET_TIME_MIN = 0.05 #the minimum packet timeout PACKET_TIME can have
 
 #a counter for our packets - this number can grow quite large, which is why there is a reset counter constant below it...
 packet_count = 0
@@ -105,11 +106,14 @@ def recieve_data(Cs,buffersize,timeout=20,client_number=0): #tries to recieve so
     #   --- calculate our ping ---
     ping = int(1000.0 * (time.time() - ping_start))
     #   --- Account for laggy packets ---
-    if(len(errors) == 0): #IF we get an error free packet, take that as our minimum packet time.
-        if(PACKET_TIME[client_number] < ping / 995.0): #if our PACKET_TIME is smaller than our 3x our ping, set PACKET_TIME to the new ping value.
-            PACKET_TIME[client_number] = (ping / 995.0) #set our packet time wait to 3 times our ping to compensate for bad latency spikes
+    if(len(errors) > 0):
+        if(PACKET_TIME[client_number] < ping / 995.0): #if our PACKET_TIME is smaller than our ping, set PACKET_TIME to the new ping value.
+            PACKET_TIME[client_number] = (ping / 995.0) #set our packet time wait to our ping time to compensate for bad latency spikes
         elif(PACKET_TIME[client_number] > (ping/1000.0) * 1.1): #if our ping is below PACKET_TIME by roughly 10%, we decrease our PACKET_TIME by 9%
             PACKET_TIME[client_number] = PACKET_TIME[client_number] * 0.91
+    #   --- Restrict our packet time variable from going too low ---
+    if(PACKET_TIME_MIN > PACKET_TIME[client_number]): #is our minimum packet time greater than our packet time value???
+        PACKET_TIME[client_number] = PACKET_TIME_MIN #set our packet time to the minimum because we went too low
     return data, ping, errors #return the data this function gathered
 
 def send_data_noerror(Cs,buffersize,data,ack="ACK"): #sends a packet of data as a string. Uses some basic error correction to lower the chances of disconnection
