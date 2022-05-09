@@ -1,4 +1,4 @@
-#NETCODE.PY library by Lincoln V. ---VERSION 0.12---
+#NETCODE.PY library by Lincoln V. ---VERSION 0.14---
 
 import socket
 import time #for getting ping
@@ -55,8 +55,10 @@ def recieve_data(Cs,buffersize,timeout=20,client_number=0): #tries to recieve so
         packet_count = 0
     #   --- get our data's buffersize ---
     try:
-        Nbuffersize = Cs.recv(buffersize)
-        Nbuffersize = int(Nbuffersize.decode('utf-8'))
+        Nbuffersize = Cs.recv(buffersize).decode('utf-8')
+        while len(list(Nbuffersize)) < buffersize: #If Nbuffersize isn't a length of buffersize yet, we need to try recieve a bit more...
+            Nbuffersize = Nbuffersize + Cs.recv(buffersize - len(list(Nbuffersize))).decode('utf-8')
+        Nbuffersize = int(Nbuffersize)
     except:
         errors.append("(" + justify(str(packet_count),5) + ") " + ERROR_MSGS[BUFFERSIZE_FAIL])
         data = None
@@ -83,15 +85,15 @@ def recieve_data(Cs,buffersize,timeout=20,client_number=0): #tries to recieve so
             try:
                 Cs.recv(pow(10,buffersize))
             except: #once we empty the socket buffer, just exit this loop
-                Cs.settimeout(timeout) #restore the old timeout value
                 break
+        Cs.settimeout(timeout) #restore the old timeout value
     #   --- IF we can't evaluate the data string as-is, we try to see if there is ANYTHING left in the socket buffer ---
     if(data != None):
         if(initial_success == False):
             Cs.settimeout(PACKET_TIME[client_number])
-            while True:
+            while len(list(data)) < Nbuffersize:
                 try: #grab some data if we can
-                    data += Cs.recv(pow(10,buffersize)).decode('utf-8')
+                    data += Cs.recv(Nbuffersize - len(list(data))).decode('utf-8')
                     try: #try to evaluate the data string again after recieving more tidbits of it
                         data = eval(data) #IF we can evaluate the data, then we break this loop.
                         break
