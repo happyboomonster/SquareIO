@@ -423,8 +423,8 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
                 if(x in skip): #we don't want to check somebody we've already added to the scoreboard
                     continue
                 addup = 0
-                for addup in range(0,len(SS[x].size)):
-                    addup += SS[x].size[addup]
+                for addition in range(0,len(SS[x].size)):
+                    addup += SS[x].size[addition]
                 if(addup > largest[1]): #we found a larger player?
                     largest = [x,addup]
             #add his size + name to a scoreboard list, provided there's anything on the scoreboard list at all...

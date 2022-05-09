@@ -397,13 +397,7 @@ def manage_client(IP,PORT): #manages a single client connection
             with printer.msgs_lock: #print out any packet loss logs we acquire
                 for x in range(0,len(Cdata_payload[2])):
                     printer.msgs.append(Cdata_payload[2][x])
-        except socket.timeout: #we're not getting any data in 5 SECONDS?? a ping of 5000 is unplayable, so the person probably disconnected.
-            running = False
-            break
         except ConnectionResetError: #a guaranteed disconnect? Connection DROPPED, player gets shoe.
-            running = False
-            break
-        except ValueError: #we timed out, and as a result got '' instead of an int. ValueError occurs then...
             running = False
             break
 
