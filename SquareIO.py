@@ -408,9 +408,9 @@ def renderer(stretch=True): #the SquareIO renderer thread. Drawing EVERYTHING. (
                 pass #just ignore it...
 
         #draw our performance/lobby stats
-        draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " PPS: " + justify(str(performance[2]),3) + " PING - " + justify(str(performance[3]),4) + " PACK. LOSS - " + justify(str(performance[4]),6),[1,1],[255,0,0],0.5)
+        draw_words("FPS - " + justify(str(performance[0]),3) + " CPS - " + justify(str(performance[1]),3) + " PPS: " + justify(str(performance[2]),3) + " PING - " + justify(str(performance[3]),4) + " PACK. LOSS - " + justify(str(performance[4]),6),[1,1],[150,150,150],0.5)
         with lobbystats_lock:
-            draw_words("Lobby status - " + justify(lobbystats[0],6) + " Time - " + justify(str(int(lobbystats[1])),3),[1,470],[255,0,0],0.5)
+            draw_words("Lobby status - " + justify(lobbystats[0],6) + " Time - " + justify(str(int(lobbystats[1])),3),[1,470],[150,150,150],0.5)
 
         #create a scoreboard
         scoreboard = []

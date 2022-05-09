@@ -535,12 +535,30 @@ def round_handler(): #governs the timing of when waiting for players happens, an
             with consts_lock:
                 for x in range(0,len(obj)):
                     obj[x].size = [SIZE]
+        final_seconds = False
+        increment_seconds = False
         while True: #wait till the round is over
             with game_phase_lock: #keep track of how much time left in round
                 timeleft = roundtime - (time.time() - roundstart)
             with lobbystats_lock:
                 if((time.time() - roundstart) >= roundtime): #round over?
                     break
+            with lobbystats_lock:
+                if((time.time() - roundstart) > 10): #more than 10 seconds left in the round???
+                    final_seconds = False
+                else:
+                    final_seconds = True
+            with lobbystats_lock:
+                if(increment_seconds == True): #we need to end the round sooner??
+                    roundstart -= 0.35 #decrement the roundstart timer by 0.35 seconds
+            with obj_lock: #check to see if anyone is 90% the size of the screen on the X axis (640 size)
+                for x in range(0,len(obj)):
+                    player_size = 0
+                    for add in range(0,len(obj[x].size)): #add this player's size up
+                        player_size += obj[x].size[add]
+                    if(player_size >= (640 * 0.9)):
+                        if(final_seconds == False): #if this player is at or greater than 90% of the size of the screen, set a flag to end the round sooner!
+                            increment_seconds = True
         with game_phase_lock: #let all the clients know the game state
             game_phase = "wait"
         with printer.msgs_lock:
