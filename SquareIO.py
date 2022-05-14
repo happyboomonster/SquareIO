@@ -561,17 +561,16 @@ def network(): #the netcode thread!
     loss_counter = [0,0] #a list of the packets which did and didn't make it through to us...[successful, lost]
     LOSS_UPDATE_TIME = 10 #every LOSS_UPDATE_TIME packets our loss counter gets updated to the LOSS variable
 
-    while True: #main netcode loop
-        try: #get ALL the server data
-            pack = netcode.recieve_data(Cs,buffersize,timeout=5)
-        except Exception as e: #we REALLY lost connection?
-            with printer.msgs_lock:
-                printer.msgs.append(str(e))
-            with running_lock:
+    connected = True
+
+    while connected: #main netcode loop
+        pack = netcode.recieve_data(Cs,buffersize) #get ALL the server data
+        if(pack[3] == False): #we lost connection with the server???
+            with running_lock: #close down the other threads
                 running = False
-            with printer.msgs_lock:
+            with printer.msgs_lock: #print an error message
                 printer.msgs.append("[ERROR] Server did not send data to client!")
-            break
+            connected = False #kill this thread too
         with printer.msgs_lock: #print out any packet loss info we get!
             for x in range(0,len(pack[2])):
                 printer.msgs.append(pack[2][x])
@@ -661,19 +660,17 @@ def network(): #the netcode thread!
         with running_lock: #if we doesn't wants to be here anymore?
             if(running == False):
                 print("Server acknowledged closedown. Exiting...")
-                Cs.close() #close the connection
+                #Cs.close() #close the connection
                 break #kill the thread
 
         with player_lock: #send our player data
             Cdata = gather_data(player)
-        try:
-            netcode.send_data(Cs,buffersize,Cdata)
-        except: #we lost server connection?
-            with running_lock:
+        connected = netcode.send_data(Cs,buffersize,Cdata)
+        if(connected == False): #we lost contact with the server???
+            with running_lock: #close down the other threads
                 running = False
-            with printer.msgs_lock:
+            with printer.msgs_lock: #print an error message out on the console
                 printer.msgs.append("[ERROR] Couldn't send client's data pack!")
-            break
 
         if(loss_counter[0] + loss_counter[1] >= LOSS_UPDATE_TIME): #update our loss counter?
             with LOSS_lock:
@@ -685,7 +682,7 @@ def network(): #the netcode thread!
                     LOSS = 100.00 #we lost 100% packets, oh no!
             loss_counter = [0,0]
 
-        Nclock.tick(100) #tick the clock so we can see our PPS (100 is limit so we don't end up with an infinity value)
+        Nclock.tick(100) #tick da PPS clock (limit of 100 is so that we don't get infinity value when too much pack. loss)
 
         #and set our PPS so we can see our terrible performance stats
         with PPS_lock:
@@ -730,6 +727,7 @@ def start_game(name,port,ip,stretch):
         Cs.settimeout(5) #(?) second timeout limit
     if(connection):
         print("[OK] Connection established with server " + ipaddr) #debug info
+        netcode.configure_socket(Cs) #configure our socket for netcode.py commands
 
     #attempt to retrieve the firstfruits of our connection - the server's pick of a connection buffer size
     if(connection): #we made it this far?

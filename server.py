@@ -203,14 +203,11 @@ def manage_client(IP,PORT): #manages a single client connection
 
     #our packet count
     packet_ct = 0 #reset this once it reaches FOOD_EXCHANGES.
-
-    #packet timeout value in seconds
-    SOCKET_TIMEOUT = 2.0
     
     #create a socket connection to the client
     buffersize = 10 #default buffer size
     Cs, Caddress = s.accept() #connect to a client
-    Cs.settimeout(SOCKET_TIMEOUT) #set a timeout of (?) seconds for Cs
+    netcode.configure_socket(Cs) #configure our socket settings so it's ready for netcode.py commands
     with printer.msgs_lock: #let the WORLD of terminal know...how exciting
         printer.msgs.append("[OK] Client at " + str(Caddress) + " connected successfully.")
 
@@ -386,20 +383,18 @@ def manage_client(IP,PORT): #manages a single client connection
         netpack.append(Sdata) #add our sync data to the netpack list
         with game_phase_lock: #add our time/game phase data to netpack
             netpack.append([game_phase,timeleft])
-        netcode.send_data(Cs,buffersize,netpack) #send our "netpack"
+        running = netcode.send_data(Cs,buffersize,netpack) #send our "netpack", which also will tell us whether we're still connected.
         netpack = [] #clear the netpack for next tick
         
         #Recieve client data...
-        Cdata_payload = netcode.recieve_data(Cs,buffersize,SOCKET_TIMEOUT,clientnum - 1)
+        Cdata_payload = netcode.recieve_data(Cs,buffersize,clientnum - 1)
         Cdata = Cdata_payload[0]
         with printer.msgs_lock: #print out any packet loss logs we acquire
             for x in range(0,len(Cdata_payload[2])):
                 printer.msgs.append(Cdata_payload[2][x])
 
-        #Check if we lost 25 packets in a row from this client (disconnect)
-        if(netcode.ERROR_MSGS[netcode.CONNECTION_LOST] in Cdata_payload[2]):
-            running = False
-            break
+        #check if we should still be running this client loop
+        running = Cdata_payload[3]
 
         #now we need to decode the client's data...
         with obj_lock:
