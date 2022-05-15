@@ -1,4 +1,4 @@
-##"netcode.py" library ---VERSION 0.24---
+##"netcode.py" library ---VERSION 0.26---
 ##Copyright (C) 2022  Lincoln V.
 ##
 ##This program is free software: you can redistribute it and/or modify
@@ -184,45 +184,3 @@ def recieve_data(Cs,buffersize,client_number=0): #tries to recieve some data wit
     if(PACKET_TIME_MIN > PACKET_TIME[client_number]): #is our minimum packet time greater than our packet time value???
         PACKET_TIME[client_number] = PACKET_TIME_MIN #set our packet time to the minimum because we went too low
     return [data, ping, errors, connected] #return the data this function gathered
-
-def send_data_noerror(Cs,buffersize,data,ack="ACK"): #sends a packet of data as a string. Uses some basic error correction to lower the chances of disconnection
-    datalen = justify(str(len(list(str(data)))),buffersize)
-    data = str(data)
-    while True:
-        Cs.sendall(bytes(datalen + data,'utf-8')) #send the buffersize of our data with the data at the same time
-        acknowledge = Cs.recv(buffersize) #get a confirm signal after sending data
-        acknowledge = acknowledge.decode('utf-8')
-        if(acknowledge == justify(ack,buffersize)): #we got a successful data packet through?
-            break #exit this annoying loop!
-
-def recieve_data_noerror(Cs,buffersize,evaluate=False,returnping=False,ack="ACK"): #recieves a packet of data as a string. Uses some basic error correction to lower the chances of disconnection
-    pingstart = time.time() #set a starting ping time
-    while True:
-        donteval = False
-        Nbuffersize = Cs.recv(buffersize).decode('utf-8') #get our data's buffersize
-        try:
-            Nbuffersize = int(Nbuffersize)
-        except:
-            donteval = True
-            Cs.sendall(bytes(justify("nak",buffersize),'utf-8')) #we didn't get through...
-        data = Cs.recv(Nbuffersize).decode('utf-8') #recieve our data
-        #once we get our data, now we have to check it for errors...
-        if(evaluate and not donteval): #if we're planning on pre-evaluating our data, use that as a check to check for errors.
-            try:
-                eval(data)
-            except: #that data didn't get through?
-                Cs.sendall(bytes(justify("nak",buffersize),'utf-8')) #we didn't get through...
-                continue
-        #also, we know that our data should be a certain length. Check the recieved length against what was supposed to be recieved...
-        if(not donteval and Nbuffersize != len(list(data))):
-            Cs.sendall(bytes(justify("nak",buffersize),'utf-8')) #we didn't get through...
-        elif(not donteval):
-            Cs.sendall(bytes(justify(ack,buffersize),'utf-8'))
-            break #exit this loop for crying out loud!
-    ping = int(1000.0 * (time.time() - pingstart)) #calculate our ping
-    if(evaluate):
-        data = eval(data)
-    if(returnping == False):
-        return data
-    else:
-        return data, ping

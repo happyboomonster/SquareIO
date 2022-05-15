@@ -765,12 +765,12 @@ def start_game(name,port,ip,stretch):
     if(connection):
         print("[INFO] Recieving start data...")
         try:
-            Cdata = netcode.recieve_data_noerror(Cs,buffersize)
+            Cdata = netcode.recieve_data(Cs,buffersize)[0]
         except:
             print("    [ERROR] Connection Lost!!!! Data recieved: " + str(Cdata))
             connection = False
     if(connection):
-        player.set_stats(eval(Cdata))
+        player.set_stats(Cdata)
         print("    [OK] Recieved start data.")
 
     #next we need to send back some info - our name.
@@ -779,7 +779,7 @@ def start_game(name,port,ip,stretch):
         player.name = name
         Sendstuff = gather_data(player)
         try:
-            netcode.send_data_noerror(Cs,buffersize,Sendstuff)
+            netcode.send_data(Cs,buffersize,Sendstuff)
         except: #we probably timed out on our recieve signal...
             print("    [ERROR] Couldn't send player name!")
             connection = False
@@ -796,7 +796,7 @@ def start_game(name,port,ip,stretch):
         Foodlen = int(Cs.recv(buffersize).decode('utf-8')) #get the length of the food list
         Cs.send(bytes("          ",'utf-8')) #send an empty 10 byte confirm signal
         try:
-            tmpfood = netcode.recieve_data_noerror(Cs,buffersize,evaluate=True)
+            tmpfood = netcode.recieve_data(Cs,buffersize)[0]
             Fdata = eval(str(tmpfood))
             if(Fdata == None):
                 print("    [ERROR] Failed to recieve food positions! (Nonetype food value)")
