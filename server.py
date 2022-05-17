@@ -403,7 +403,7 @@ def manage_client(IP,PORT): #manages a single client connection
         netpack = [] #clear the netpack for next tick
         
         #Recieve client data...
-        Cdata_payload = netcode.recieve_data(Cs,buffersize,clientnum - 1)
+        Cdata_payload = netcode.recieve_data(Cs,buffersize)
         Cdata = Cdata_payload[0]
         with printer.msgs_lock: #print out any packet loss logs we acquire
             for x in range(0,len(Cdata_payload[2])):

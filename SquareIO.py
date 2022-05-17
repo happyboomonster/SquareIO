@@ -676,7 +676,7 @@ def network(): #the netcode thread!
         with running_lock: #if we doesn't wants to be here anymore?
             if(running == False):
                 print("Server acknowledged closedown. Exiting...")
-                #Cs.close() #close the connection
+                Cs.close() #close the connection
                 break #kill the thread
 
         with player_lock: #send our player data
