@@ -209,7 +209,7 @@ def manage_client(IP,PORT): #manages a single client connection
     global game_phase
     global timeleft
     #a constant which defines our goal Packets Per Second
-    GOAL_PPS = 10
+    GOAL_PPS = 20
 
     #whether we need the client to respawn
     RESPAWN = False
@@ -473,6 +473,7 @@ def player_handler(): #checks if anyone ate anyone else, or if somebody ate food
                                 obj[objects].size[foodeaten[0]] += food[x].size[foodeaten[1]] #make sure we grow that hungry player
                                 del(food[x]) #delete the eaten food
                                 break #restart the calculations now that "food" is 1 index shorter than it should be
+            exit_eat_loop = False
             with obj_lock: #check if anyone has eaten anyone else???
                 for players in range(0,len(obj)):
                     if(obj[players].connected == False): #we're NOT checking collision for people who aren't there!
@@ -494,7 +495,10 @@ def player_handler(): #checks if anyone ate anyone else, or if somebody ate food
                             obj[others].size.pop(playereaten[1]) #delete the eaten player's cell
                             obj[others].direction.pop(playereaten[1])
                             obj[others].pos.pop(playereaten[1])
-                            continue #move on to the next player since this one already ate someone this tick
+                            exit_eat_loop = True #exit this nested loop system
+                            break
+                    if(exit_eat_loop == True): #we need to exit to avoid an "IndexError"?
+                        break
         else: #we're not ingame currently:
             with obj_lock:
                 for x in range(0,len(obj)):
