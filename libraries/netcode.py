@@ -1,4 +1,4 @@
-##"netcode.py" library ---VERSION 0.30---
+##"netcode.py" library ---VERSION 0.31---
 ##Copyright (C) 2022  Lincoln V.
 ##
 ##This program is free software: you can redistribute it and/or modify
@@ -178,42 +178,3 @@ def recieve_data(Cs,buffersize): #tries to recieve some data without checking it
         errors.append(ERROR_MSGS[SOCK_CLOSE])
         connected = False
     return [data, ping, errors, connected] #return the data this function gathered
-
-def send_data_noerror(Cs,buffersize,data): #sends a packet of data as a string. Uses some basic error correction to lower the chances of disconnection
-    datalen = justify(str(len(list(str(data)))),buffersize)
-    data = str(data)
-    connected = True #this function returns this flag; Tells whether our socket is still live or not.
-    while True:
-        connected = send_data(Cs,buffersize,data) #send our data out
-        if(connected == False): #if we're not connected, just exit then
-            break
-        acknowledge_pack = recieve_data(Cs,buffersize) #get an acknowledge signal
-        if(acknowledge_pack[0] == "ACK"): #we delivered the data successfully??
-            break
-        elif(acknowledge_pack[3] == False): #we lost connection?
-            connected = False
-            break
-    return connected
-
-def recieve_data_noerror(Cs,buffersize,evaluate=False): #recieves a packet of data as a string. Uses some basic error correction to lower the chances of disconnection
-    pingstart = time.time() #set a starting ping time
-    connected = True
-    while True:
-        packet_through = True
-        data_pack = recieve_data(Cs,buffersize) #recieve our data
-        if(data_pack[0] != None): #we got a packet through???
-            data = data_pack[0]
-            if(evaluate): #do we need to evaluate it??
-                try:
-                    data = eval(data)
-                    packet_through = True
-                except: #we failed to evaluate it??
-                    packet_through = False
-        else:
-            packet_through = False
-        if(packet_through):
-            connected = send_data(Cs,buffersize,"ACK")
-        else: #we dropped the packet?
-            connected = send_data(Cs,buffersize,"NAK")
-    ping = int(1000.0 * (time.time() - pingstart)) #calculate our ping
-    return data
